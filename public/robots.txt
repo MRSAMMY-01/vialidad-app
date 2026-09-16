@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+
+Sitemap: https://reporte-vialidad.vercel.app/sitemap.xml

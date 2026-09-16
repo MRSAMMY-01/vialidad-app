@@ -5,17 +5,104 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="canonical" href="https://reporte-vialidad.vercel.app/" />
+
+    <!-- Viewport (WCAG 1.4.4 accessible, allows user zooming) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    
+    <title>Chillán Reporta — Estado de las Calles</title>
+    <meta name="description" content="Mapa ciudadano en tiempo real sobre el estado de las calles, baches y cortes en Chillán y la Región de Ñuble." />
     <meta name="theme-color" content="#2563eb" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Chillán Reporta" />
     <meta name="application-name" content="Chillán Reporta" />
-    <meta name="description" content="Reporta el estado de las calles en Chillán y Chillán Viejo, Región de Ñuble." />
-    <title>Chillán Reporta — Estado de las Calles</title>
+
+    <!-- Open Graph / Facebook / WhatsApp / Instagram -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_CL" />
+    <meta property="og:url" content="https://reporte-vialidad.vercel.app/" />
+    <meta property="og:site_name" content="Chillán Reporta" />
+    <meta property="og:title" content="Chillán Reporta — Estado de las Calles" />
+    <meta property="og:description" content="Mapa ciudadano en tiempo real sobre el estado de las calles, baches y cortes en Chillán y la Región de Ñuble." />
+    <meta property="og:image" content="https://reporte-vialidad.vercel.app/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="Chillán Reporta — Estado de las Calles" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Chillán Reporta — Estado de las Calles" />
+    <meta name="twitter:description" content="Mapa ciudadano en tiempo real sobre el estado de las calles, baches y cortes en Chillán y la Región de Ñuble." />
+    <meta name="twitter:image" content="https://reporte-vialidad.vercel.app/icon-512.png" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://reporte-vialidad.vercel.app/#website",
+          "url": "https://reporte-vialidad.vercel.app/",
+          "name": "Chillán Reporta",
+          "description": "Mapa colaborativo del estado de las calles en la Región de Ñuble: baches, cortes de calle, peligro vial y reportes ciudadanos.",
+          "inLanguage": "es-CL"
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://reporte-vialidad.vercel.app/#organization",
+          "name": "Chillán Reporta",
+          "url": "https://reporte-vialidad.vercel.app/",
+          "logo": "https://reporte-vialidad.vercel.app/icon-512.png",
+          "areaServed": {
+            "@type": "AdministrativeArea",
+            "name": "Región de Ñuble, Chile"
+          }
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://reporte-vialidad.vercel.app/#webapp",
+          "name": "Chillán Reporta — Estado de las Calles",
+          "url": "https://reporte-vialidad.vercel.app/",
+          "applicationCategory": "UtilitiesApplication, NavigationApplication",
+          "operatingSystem": "All",
+          "inLanguage": "es-CL",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "CLP"
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
+    <!-- Fallback semántico para indexación SEO y motores de búsqueda -->
+    <noscript>
+      <div style="font-family: system-ui, -apple-system, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; line-height: 1.6; color: #1f2937;">
+        <h1 style="color: #2563eb; font-size: 1.8rem; margin-bottom: 1rem;">Chillán Reporta — Estado de las Calles</h1>
+        <p>
+          <strong>Chillán Reporta</strong> es una plataforma ciudadana y colaborativa en tiempo real para visualizar y reportar el estado de las vías de tránsito en la <strong>Región de Ñuble, Chile</strong>.
+        </p>
+        <h2 style="font-size: 1.3rem; margin-top: 1.5rem; margin-bottom: 0.5rem;">¿Qué puedes consultar y reportar?</h2>
+        <ul>
+          <li><strong>Baches y daños en el pavimento:</strong> Ubicación geográfica exacta y nivel de peligro vial (alto, medio, bajo).</li>
+          <li><strong>Cortes de calle:</strong> Faenas viales, desvíos y cierres temporales de tránsito.</li>
+          <li><strong>Validación comunitaria:</strong> Confirmaciones vecinales y estado de intervención o reparación en vivo.</li>
+        </ul>
+        <h2 style="font-size: 1.3rem; margin-top: 1.5rem; margin-bottom: 0.5rem;">Cobertura geográfica</h2>
+        <p>
+          Disponible para Chillán, Chillán Viejo y las comunas de la Región de Ñuble (Bulnes, San Carlos, Coihueco, Quillón, Pinto, entre otras).
+        </p>
+        <p style="margin-top: 1.5rem; padding: 1rem; background-color: #f3f4f6; border-radius: 0.5rem;">
+          <em>Nota: Para interactuar con el mapa en vivo y registrar reportes viales, por favor activa JavaScript en tu navegador.</em>
+        </p>
+      </div>
+    </noscript>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

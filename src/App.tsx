@@ -169,7 +169,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative h-[100dvh] w-screen overflow-hidden bg-gray-100">
+    <main className="relative h-[100dvh] w-screen overflow-hidden bg-gray-100">
       <MapView
         events={filteredEvents}
         onSelect={setSelectedEvent}
@@ -193,13 +193,13 @@ export default function App() {
       )}
 
       {/* Top Header: Clean Stats Bar */}
-      <div className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 pointer-events-auto">
+      <header className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 pointer-events-auto">
         <StatsBar
           totalEvents={events.length}
           affectedStreetsCount={affectedStreetsCount}
           criticalCount={criticalCount}
         />
-      </div>
+      </header>
 
       {/* Support Project Button (Bottom-Left) */}
       <SupportButton />
@@ -223,6 +223,6 @@ export default function App() {
           currentUid={userId}
         />
       )}
-    </div>
+    </main>
   );
 }
