@@ -371,7 +371,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
               </div>
             ) : (
               <div className="space-y-2 pt-2">
-                <h3 className="text-sm font-semibold text-gray-800">Nivel de severidad</h3>
+                <h3 className="text-sm font-semibold text-gray-800">¿Qué tan peligrosa está la calle?</h3>
                 <div className="grid grid-cols-3 gap-2">
                   {severityOptions.map(({ key, icon: Icon }) => {
                     const isSelected = severity === key;

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet.markercluster';
-import { Locate, Loader2 } from 'lucide-react';
+import { Locate, Loader2, ChevronDown } from 'lucide-react';
 import type { ReportEvent, Severity } from '@/data/mockEvents';
 import { mockGpsLocation, severityConfig } from '@/data/mockEvents';
 import { createSeverityIcon, createGpsIcon } from '@/utils/mapIcons';
@@ -256,6 +256,8 @@ export default function MapView({
   const [internalUserLocation, setInternalUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [showBoundsNotice, setShowBoundsNotice] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
   const [targetLocation, setTargetLocation] = useState<{
     lat: number;
     lng: number;
@@ -267,6 +269,24 @@ export default function MapView({
   const boundsTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const activeUserLocation = propUserLocation ?? internalUserLocation;
+
+  // Close filter dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+
+    if (isFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isFilterOpen]);
 
   const handleOutOfBounds = useCallback(() => {
     setShowBoundsNotice(true);
@@ -395,126 +415,189 @@ export default function MapView({
         </div>
       )}
 
-      {/* Interactive Severity Filter & Legend */}
-      <div className="absolute top-16 left-4 z-[1000] pointer-events-auto rounded-2xl bg-white/95 p-1.5 shadow-lg backdrop-blur-md border border-gray-100/90 text-xs flex flex-col gap-1 min-w-[130px]">
-        <div className="flex items-center justify-between px-2 pt-1 pb-0.5 border-b border-gray-100">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
-            Severidad
-          </span>
-          {selectedSeverity !== 'todos' && (
+      {/* Collapsible Severity Filter Pill & Dropdown */}
+      <div ref={filterDropdownRef} className="absolute top-16 left-3.5 z-[1000] pointer-events-auto">
+        {/* Toggle Pill */}
+        <button
+          type="button"
+          onClick={() => setIsFilterOpen(!isFilterOpen)}
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-md backdrop-blur-md border transition-all active:scale-95 ${
+            selectedSeverity !== 'todos'
+              ? 'bg-gray-900 text-white border-gray-800'
+              : 'bg-white/95 text-gray-700 border-gray-100 hover:bg-gray-50'
+          }`}
+        >
+          {selectedSeverity === 'critico' ? (
+            <>
+              <span className="h-2 w-2 rounded-full bg-red-500 ring-2 ring-red-200" />
+              <span>Peligro alto ({severityCounts?.critico ?? 0})</span>
+            </>
+          ) : selectedSeverity === 'moderado' ? (
+            <>
+              <span className="h-2 w-2 rounded-full bg-amber-500 ring-2 ring-amber-200" />
+              <span>Peligro medio ({severityCounts?.moderado ?? 0})</span>
+            </>
+          ) : selectedSeverity === 'leve' ? (
+            <>
+              <span className="h-2 w-2 rounded-full bg-green-500 ring-2 ring-green-200" />
+              <span>Peligro bajo ({severityCounts?.leve ?? 0})</span>
+            </>
+          ) : (
+            <>
+              <div className="flex -space-x-1">
+                <span className="h-2 w-2 rounded-full bg-red-500 ring-1 ring-white" />
+                <span className="h-2 w-2 rounded-full bg-amber-500 ring-1 ring-white" />
+                <span className="h-2 w-2 rounded-full bg-green-500 ring-1 ring-white" />
+              </div>
+              <span>Peligro vial</span>
+            </>
+          )}
+          <ChevronDown
+            size={13}
+            className={`transition-transform duration-200 ${
+              isFilterOpen ? 'rotate-180' : ''
+            } ${selectedSeverity !== 'todos' ? 'text-gray-300' : 'text-gray-400'}`}
+          />
+        </button>
+
+        {/* Dropdown Menu when open */}
+        {isFilterOpen && (
+          <div className="mt-1.5 rounded-2xl bg-white/95 p-1.5 shadow-xl backdrop-blur-md border border-gray-100 text-xs flex flex-col gap-1 min-w-[145px] animate-scale-in">
+            <div className="flex items-center justify-between px-2 pt-1 pb-0.5 border-b border-gray-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                Peligro vial
+              </span>
+              {selectedSeverity !== 'todos' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectSeverity?.('todos');
+                    setIsFilterOpen(false);
+                  }}
+                  className="text-[10px] text-blue-600 font-semibold hover:underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
             <button
               type="button"
-              onClick={() => onSelectSeverity?.('todos')}
-              className="text-[10px] text-blue-600 font-semibold hover:underline"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onSelectSeverity?.('critico')}
-          className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
-            selectedSeverity === 'critico'
-              ? 'bg-red-50 text-red-700 ring-1 ring-red-300 shadow-sm'
-              : 'text-gray-700 hover:bg-gray-100/80'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-red-200 shrink-0" />
-            <span>Crítico</span>
-          </div>
-          {severityCounts && (
-            <span
-              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+              onClick={() => {
+                onSelectSeverity?.('critico');
+                setIsFilterOpen(false);
+              }}
+              className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
                 selectedSeverity === 'critico'
-                  ? 'bg-red-200/80 text-red-800'
-                  : 'text-gray-400 bg-gray-100'
+                  ? 'bg-red-50 text-red-700 ring-1 ring-red-300 shadow-sm'
+                  : 'text-gray-700 hover:bg-gray-100/80'
               }`}
             >
-              {severityCounts.critico}
-            </span>
-          )}
-        </button>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-red-200 shrink-0" />
+                <span>Peligro alto</span>
+              </div>
+              {severityCounts && (
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    selectedSeverity === 'critico'
+                      ? 'bg-red-200/80 text-red-800'
+                      : 'text-gray-400 bg-gray-100'
+                  }`}
+                >
+                  {severityCounts.critico}
+                </span>
+              )}
+            </button>
 
-        <button
-          type="button"
-          onClick={() => onSelectSeverity?.('moderado')}
-          className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
-            selectedSeverity === 'moderado'
-              ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-300 shadow-sm'
-              : 'text-gray-700 hover:bg-gray-100/80'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-amber-200 shrink-0" />
-            <span>Moderado</span>
-          </div>
-          {severityCounts && (
-            <span
-              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+            <button
+              type="button"
+              onClick={() => {
+                onSelectSeverity?.('moderado');
+                setIsFilterOpen(false);
+              }}
+              className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
                 selectedSeverity === 'moderado'
-                  ? 'bg-amber-200/80 text-amber-800'
-                  : 'text-gray-400 bg-gray-100'
+                  ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-300 shadow-sm'
+                  : 'text-gray-700 hover:bg-gray-100/80'
               }`}
             >
-              {severityCounts.moderado}
-            </span>
-          )}
-        </button>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-amber-200 shrink-0" />
+                <span>Peligro medio</span>
+              </div>
+              {severityCounts && (
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    selectedSeverity === 'moderado'
+                      ? 'bg-amber-200/80 text-amber-800'
+                      : 'text-gray-400 bg-gray-100'
+                  }`}
+                >
+                  {severityCounts.moderado}
+                </span>
+              )}
+            </button>
 
-        <button
-          type="button"
-          onClick={() => onSelectSeverity?.('leve')}
-          className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
-            selectedSeverity === 'leve'
-              ? 'bg-green-50 text-green-700 ring-1 ring-green-300 shadow-sm'
-              : 'text-gray-700 hover:bg-gray-100/80'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-green-200 shrink-0" />
-            <span>Leve</span>
-          </div>
-          {severityCounts && (
-            <span
-              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+            <button
+              type="button"
+              onClick={() => {
+                onSelectSeverity?.('leve');
+                setIsFilterOpen(false);
+              }}
+              className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
                 selectedSeverity === 'leve'
-                  ? 'bg-green-200/80 text-green-800'
-                  : 'text-gray-400 bg-gray-100'
+                  ? 'bg-green-50 text-green-700 ring-1 ring-green-300 shadow-sm'
+                  : 'text-gray-700 hover:bg-gray-100/80'
               }`}
             >
-              {severityCounts.leve}
-            </span>
-          )}
-        </button>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-green-200 shrink-0" />
+                <span>Peligro bajo</span>
+              </div>
+              {severityCounts && (
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    selectedSeverity === 'leve'
+                      ? 'bg-green-200/80 text-green-800'
+                      : 'text-gray-400 bg-gray-100'
+                  }`}
+                >
+                  {severityCounts.leve}
+                </span>
+              )}
+            </button>
 
-        <div className="h-px bg-gray-100 my-0.5" />
+            <div className="h-px bg-gray-100 my-0.5" />
 
-        {/* Todos option below */}
-        <button
-          type="button"
-          onClick={() => onSelectSeverity?.('todos')}
-          className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
-            selectedSeverity === 'todos'
-              ? 'bg-gray-900 text-white shadow-sm'
-              : 'text-gray-600 hover:bg-gray-100/80'
-          }`}
-        >
-          <span>Todos</span>
-          {severityCounts && (
-            <span
-              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+            {/* Todos option below */}
+            <button
+              type="button"
+              onClick={() => {
+                onSelectSeverity?.('todos');
+                setIsFilterOpen(false);
+              }}
+              className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
                 selectedSeverity === 'todos'
-                  ? 'bg-white/20 text-white'
-                  : 'text-gray-400 bg-gray-100'
+                  ? 'bg-gray-900 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100/80'
               }`}
             >
-              {severityCounts.todos}
-            </span>
-          )}
-        </button>
+              <span>Todos los reportes</span>
+              {severityCounts && (
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    selectedSeverity === 'todos'
+                      ? 'bg-white/20 text-white'
+                      : 'text-gray-400 bg-gray-100'
+                  }`}
+                >
+                  {severityCounts.todos}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Floating Recenter / Geolocation Button */}

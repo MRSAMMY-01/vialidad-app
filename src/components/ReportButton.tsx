@@ -8,10 +8,11 @@ export default function ReportButton({ onClick }: ReportButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="absolute bottom-6 right-5 z-[1000] flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3.5 font-semibold text-white shadow-xl shadow-blue-600/30 transition hover:bg-blue-700 active:scale-95"
+      className="absolute bottom-5 right-4 z-[1000] flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2.5 font-bold text-xs text-white shadow-lg shadow-blue-600/30 backdrop-blur-sm transition-all hover:bg-blue-700 active:scale-95"
+      aria-label="Reportar problema"
     >
-      <Plus size={22} />
-      <span className="text-sm">Reportar problema</span>
+      <Plus size={16} className="stroke-[2.5]" />
+      <span>Reportar</span>
     </button>
   );
 }

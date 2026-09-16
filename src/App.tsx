@@ -6,6 +6,7 @@ import DetailModal from '@/components/DetailModal';
 import ReportFlow from '@/components/ReportFlow';
 import StatsBar from '@/components/StatsBar';
 import ReportButton from '@/components/ReportButton';
+import SupportButton from '@/components/SupportButton';
 import ProximityAlertBanner from '@/components/ProximityAlertBanner';
 import AdminPanel from '@/components/AdminPanel';
 import { useProximityAlert } from '@/hooks/useProximityAlert';
@@ -200,6 +201,10 @@ export default function App() {
         />
       </div>
 
+      {/* Support Project Button (Bottom-Left) */}
+      <SupportButton />
+
+      {/* Report Button (Bottom-Right) */}
       <ReportButton onClick={() => setShowReport(true)} />
 
       {selectedEvent && (
