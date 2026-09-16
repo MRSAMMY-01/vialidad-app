@@ -18,9 +18,14 @@ import {
 } from '@/services/eventsService';
 
 export default function App() {
-  const [isAdminRoute, setIsAdminRoute] = useState(
-    () => typeof window !== 'undefined' && window.location.pathname === '/admin'
-  );
+  const checkIsAdminRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.toLowerCase().replace(/\/$/, '');
+    const hash = window.location.hash.toLowerCase().replace(/\/$/, '');
+    return path === '/admin' || hash === '#/admin' || hash === '#admin';
+  };
+
+  const [isAdminRoute, setIsAdminRoute] = useState(checkIsAdminRoute);
   const [events, setEvents] = useState<ReportEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ReportEvent | null>(null);
   const [showReport, setShowReport] = useState(false);
@@ -29,10 +34,14 @@ export default function App() {
 
   useEffect(() => {
     const handleLocationChange = () => {
-      setIsAdminRoute(window.location.pathname === '/admin');
+      setIsAdminRoute(checkIsAdminRoute());
     };
     window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
   }, []);
 
   const { currentPosition, activeAlert, dismissAlert } = useProximityAlert(events);
