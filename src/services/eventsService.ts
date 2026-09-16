@@ -3,6 +3,7 @@ import {
   onSnapshot,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   increment,
   arrayUnion,
@@ -51,7 +52,7 @@ export function subscribeToEvents(
           description: data.description || '',
           date: data.date || new Date().toISOString().split('T')[0],
           photo: data.photo || '',
-          reporter: data.reporter || 'Anónimo',
+          reporter: data.reporter || 'Vecino/a de Chillán',
           confirmations: Number(data.confirmations) || 0,
           yaConfirme,
           yaVoteEstado,
@@ -160,3 +161,12 @@ export async function voteEventStatus(
 
   await updateDoc(eventRef, updateData);
 }
+
+/**
+ * Permanently deletes a report document from Firestore (Admin only).
+ */
+export async function deleteEvent(eventId: string) {
+  const eventRef = doc(db, EVENTS_COLLECTION, eventId);
+  await deleteDoc(eventRef);
+}
+

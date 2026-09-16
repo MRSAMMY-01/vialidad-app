@@ -7,6 +7,7 @@ import ReportFlow from '@/components/ReportFlow';
 import StatsBar from '@/components/StatsBar';
 import ReportButton from '@/components/ReportButton';
 import ProximityAlertBanner from '@/components/ProximityAlertBanner';
+import AdminPanel from '@/components/AdminPanel';
 import { useProximityAlert } from '@/hooks/useProximityAlert';
 import type { ReportEvent, EventStatus } from '@/data/mockEvents';
 import {
@@ -17,19 +18,32 @@ import {
 } from '@/services/eventsService';
 
 export default function App() {
+  const [isAdminRoute, setIsAdminRoute] = useState(
+    () => typeof window !== 'undefined' && window.location.pathname === '/admin'
+  );
   const [events, setEvents] = useState<ReportEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<ReportEvent | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [newReportLocation, setNewReportLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setIsAdminRoute(window.location.pathname === '/admin');
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
   const { currentPosition, activeAlert, dismissAlert } = useProximityAlert(events);
 
   const totalReporters = new Set(events.map((e) => e.reporter || e.uid || 'Tú')).size;
   const criticalCount = events.filter((e) => e.severity === 'critico' && e.estado !== 'resuelto').length;
 
-  // 1. Silent anonymous authentication on mount
+  // 1. Silent anonymous authentication on mount (only for map/public view)
   useEffect(() => {
+    if (isAdminRoute) return;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserId(user.uid);
@@ -44,7 +58,7 @@ export default function App() {
     });
 
     return () => unsubscribeAuth();
-  }, []);
+  }, [isAdminRoute]);
 
   // 2. Real-time Firestore sync
   useEffect(() => {
@@ -112,6 +126,10 @@ export default function App() {
       console.error('Error al crear reporte en Firestore:', err);
     }
   };
+
+  if (isAdminRoute) {
+    return <AdminPanel />;
+  }
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-gray-100">

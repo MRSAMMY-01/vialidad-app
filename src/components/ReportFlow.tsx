@@ -12,6 +12,7 @@ import {
   Construction,
   Loader2,
   RotateCcw,
+  Users,
 } from 'lucide-react';
 import type { Severity, EventType, ReportEvent } from '@/data/mockEvents';
 import { severityConfig, mockGpsLocation } from '@/data/mockEvents';
@@ -46,6 +47,12 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
   const [isLocating, setIsLocating] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [reporterName, setReporterName] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('nombreReportero') || '';
+    }
+    return '';
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const typeOptions: { key: EventType; label: string; icon: typeof Ban }[] = [
@@ -106,6 +113,13 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
     try {
       setIsSubmitting(true);
       const today = new Date().toISOString().split('T')[0];
+      const trimmedReporter = reporterName.trim();
+      const finalReporter = trimmedReporter || 'Vecino/a de Chillán';
+
+      if (typeof window !== 'undefined' && trimmedReporter) {
+        localStorage.setItem('nombreReportero', trimmedReporter);
+      }
+
       const newEvent: Omit<ReportEvent, 'id' | 'yaConfirme' | 'yaVoteEstado'> = {
         lat: location.lat,
         lng: location.lng,
@@ -118,7 +132,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
         description: description.trim(),
         date: today,
         photo,
-        reporter: 'Tú',
+        reporter: finalReporter,
         confirmations: 0,
         uid: currentUid || undefined,
       };
@@ -440,6 +454,19 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
                 }
                 rows={2}
                 className="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-700">
+                ¿Cómo quieres que aparezca tu nombre? (opcional)
+              </label>
+              <input
+                type="text"
+                value={reporterName}
+                onChange={(e) => setReporterName(e.target.value)}
+                placeholder="Vecino/a de Chillán"
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
 
