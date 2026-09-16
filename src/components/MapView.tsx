@@ -168,6 +168,26 @@ function MapController({
 }) {
   const map = useMap();
 
+  // Invalidate map size on mount and window resize / orientation change to prevent grey tiles on mobile
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+
+    const handleResize = () => {
+      map.invalidateSize();
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [map]);
+
   useEffect(() => {
     if (targetLocation) {
       map.flyTo([targetLocation.lat, targetLocation.lng], targetLocation.zoom ?? 15, {
@@ -268,6 +288,9 @@ export default function MapView({
         center={[mockGpsLocation.lat, mockGpsLocation.lng]}
         zoom={14}
         zoomControl={false}
+        touchZoom={true}
+        doubleClickZoom={true}
+        scrollWheelZoom={true}
         className="absolute inset-0 h-full w-full"
       >
         <TileLayer

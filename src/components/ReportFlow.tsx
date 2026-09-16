@@ -267,7 +267,6 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   className="sr-only"
                   onChange={handlePhotoChange}
                 />

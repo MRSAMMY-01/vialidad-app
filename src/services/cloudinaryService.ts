@@ -64,15 +64,18 @@ export function getCloudinaryTransformedUrl(url: string, transformation: string)
 }
 
 /**
- * Generates optimized 150x150 fill thumbnail for map pins and small icons.
+ * Generates optimized 150x150 fill thumbnail for map pins, admin panel and small icons,
+ * with face blurring for privacy.
  */
 export function getMapThumbnailUrl(url: string): string {
-  return getCloudinaryTransformedUrl(url, 'w_150,h_150,c_fill,f_auto,q_auto');
+  return getCloudinaryTransformedUrl(url, 'w_150,h_150,c_fill,e_blur_faces:2000,f_auto,q_auto');
 }
 
 /**
- * Generates optimized 800px width banner for the detail modal.
+ * Generates optimized 800px width banner for the detail modal,
+ * with face blurring for privacy.
  */
 export function getDetailModalImageUrl(url: string): string {
-  return getCloudinaryTransformedUrl(url, 'w_800,f_auto,q_auto');
+  return getCloudinaryTransformedUrl(url, 'w_800,e_blur_faces:2000,f_auto,q_auto');
 }
+

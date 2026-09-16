@@ -141,7 +141,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-gray-100">
+    <div className="relative h-[100dvh] w-screen overflow-hidden bg-gray-100">
       <MapView
         events={events}
         onSelect={setSelectedEvent}
