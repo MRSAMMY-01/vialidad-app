@@ -53,6 +53,29 @@ export default function DetailModal({
 }: DetailModalProps) {
   const [isAddingIntervention, setIsAddingIntervention] = useState(false);
   const [interventionText, setInterventionText] = useState('');
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartY(e.touches[0].clientY);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartY === null) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - touchStartY;
+    if (diff > 0) {
+      setDragOffsetY(diff);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (dragOffsetY > 90) {
+      onClose();
+    }
+    setTouchStartY(null);
+    setDragOffsetY(0);
+  };
 
   const cfg = severityConfig[event.severity];
   const isResolved = event.estado === 'resuelto';
@@ -71,54 +94,72 @@ export default function DetailModal({
     (resolvedVotes > 0 && resolvedVotes < 3);
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4 backdrop-blur-[2px] animate-fade-in"
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-md rounded-t-3xl bg-white shadow-2xl animate-slide-up overflow-hidden"
+        className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90dvh] sm:max-h-[85vh] flex flex-col animate-slide-up sm:animate-scale-in transition-transform duration-75"
+        style={{
+          transform: dragOffsetY > 0 ? `translateY(${dragOffsetY}px)` : undefined,
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Photo & top badges */}
-        <div className="relative h-52">
-          <img
-            src={getDetailModalImageUrl(event.photo)}
-            alt={event.title}
-            className={`h-full w-full object-cover transition duration-300 ${
-              isResolved ? 'grayscale-[40%]' : ''
-            }`}
-          />
-          <button
-            onClick={onClose}
-            aria-label="Cerrar modal"
-            className="absolute top-3 right-3 rounded-full bg-black/40 p-2 text-white backdrop-blur-sm transition hover:bg-black/60"
-          >
-            <X size={20} />
-          </button>
-
-          <div className="absolute bottom-3 left-3 flex flex-wrap items-center gap-2">
-            {isResolved ? (
-              <div className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-                <CheckCircle2 size={15} />
-                Reparado • {formatCLDate(event.ultimaConfirmacion || event.date)}
-              </div>
-            ) : isPartial ? (
-              <div className="flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-                <Construction size={15} />
-                Intervención parcial
-              </div>
-            ) : (
-              <div className={`flex items-center gap-2 rounded-full ${cfg.bg} px-3 py-1.5 text-sm font-semibold text-white shadow-lg`}>
-                <span className="h-2 w-2 rounded-full bg-white" />
-                {cfg.label}
-              </div>
-            )}
-
-            {event.tipo === 'corte_calle' && (
-              <div className="flex items-center gap-1.5 rounded-full bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-                <Ban size={14} className="text-red-400" />
-                Corte de calle
-              </div>
-            )}
-          </div>
+        {/* Drag handle for mobile gesture */}
+        <div
+          className="sm:hidden flex items-center justify-center pt-2.5 pb-1.5 bg-white cursor-grab active:cursor-grabbing touch-none select-none"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div className="w-12 h-1.5 rounded-full bg-gray-300" />
         </div>
+
+        {/* Scrollable Container */}
+        <div className="overflow-y-auto flex-1 overscroll-contain">
+          {/* Photo & top badges */}
+          <div className="relative h-48 sm:h-56">
+            <img
+              src={getDetailModalImageUrl(event.photo)}
+              alt={event.title}
+              className={`h-full w-full object-cover transition duration-300 ${
+                isResolved ? 'grayscale-[40%]' : ''
+              }`}
+            />
+            <button
+              onClick={onClose}
+              aria-label="Cerrar modal"
+              className="absolute top-3 right-3 rounded-full bg-black/40 p-2 text-white backdrop-blur-sm transition hover:bg-black/60"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="absolute bottom-3 left-3 flex flex-wrap items-center gap-2">
+              {isResolved ? (
+                <div className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
+                  <CheckCircle2 size={15} />
+                  Reparado • {formatCLDate(event.ultimaConfirmacion || event.date)}
+                </div>
+              ) : isPartial ? (
+                <div className="flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
+                  <Construction size={15} />
+                  Intervención parcial
+                </div>
+              ) : (
+                <div className={`flex items-center gap-2 rounded-full ${cfg.bg} px-3 py-1.5 text-sm font-semibold text-white shadow-lg`}>
+                  <span className="h-2 w-2 rounded-full bg-white" />
+                  {cfg.label}
+                </div>
+              )}
+
+              {event.tipo === 'corte_calle' && (
+                <div className="flex items-center gap-1.5 rounded-full bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white shadow-lg">
+                  <Ban size={14} className="text-red-400" />
+                  Corte de calle
+                </div>
+              )}
+            </div>
+          </div>
 
         <div className="p-5 space-y-4">
           <div>
@@ -351,7 +392,9 @@ export default function DetailModal({
             </button>
           ) : null}
         </div>
+        </div>
       </div>
     </div>
   );
 }
+

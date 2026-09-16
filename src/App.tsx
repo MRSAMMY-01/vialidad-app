@@ -9,13 +9,22 @@ import ReportButton from '@/components/ReportButton';
 import ProximityAlertBanner from '@/components/ProximityAlertBanner';
 import AdminPanel from '@/components/AdminPanel';
 import { useProximityAlert } from '@/hooks/useProximityAlert';
-import type { ReportEvent, EventStatus } from '@/data/mockEvents';
+import type { ReportEvent, EventStatus, Severity } from '@/data/mockEvents';
 import {
   subscribeToEvents,
   createEvent,
   confirmEvent,
   voteEventStatus,
 } from '@/services/eventsService';
+
+// Helper to extract street names from title/description for unique affected streets calculation
+function extractStreetName(title: string, description: string): string {
+  const match = title.match(/(?:en\s+|calle\s+|av\.?\s+|avenida\s+|psje\.?\s+|pasaje\s+)([^,.-]+)/i);
+  if (match && match[1]) {
+    return match[1].trim().toLowerCase();
+  }
+  return title.trim().toLowerCase();
+}
 
 export default function App() {
   const checkIsAdminRoute = () => {
@@ -27,6 +36,7 @@ export default function App() {
 
   const [isAdminRoute, setIsAdminRoute] = useState(checkIsAdminRoute);
   const [events, setEvents] = useState<ReportEvent[]>([]);
+  const [severityFilter, setSeverityFilter] = useState<Severity | 'todos'>('todos');
   const [selectedEvent, setSelectedEvent] = useState<ReportEvent | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [newReportLocation, setNewReportLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -46,8 +56,25 @@ export default function App() {
 
   const { currentPosition, activeAlert, dismissAlert } = useProximityAlert(events);
 
-  const totalReporters = new Set(events.map((e) => e.reporter || e.uid || 'Tú')).size;
+  const activeEvents = events.filter((e) => e.estado !== 'resuelto');
+  const affectedStreetsCount = new Set(
+    activeEvents.map((e) => extractStreetName(e.title, e.description)).filter(Boolean)
+  ).size;
   const criticalCount = events.filter((e) => e.severity === 'critico' && e.estado !== 'resuelto').length;
+
+  const severityCounts = {
+    todos: events.length,
+    critico: events.filter((e) => e.severity === 'critico').length,
+    moderado: events.filter((e) => e.severity === 'moderado').length,
+    leve: events.filter((e) => e.severity === 'leve').length,
+  };
+
+  const filteredEvents = events.filter((e) => {
+    if (severityFilter !== 'todos' && e.severity !== severityFilter) {
+      return false;
+    }
+    return true;
+  });
 
   // 1. Silent anonymous authentication on mount (only for map/public view)
   useEffect(() => {
@@ -143,10 +170,13 @@ export default function App() {
   return (
     <div className="relative h-[100dvh] w-screen overflow-hidden bg-gray-100">
       <MapView
-        events={events}
+        events={filteredEvents}
         onSelect={setSelectedEvent}
         newReportLocation={newReportLocation}
         userLocation={currentPosition}
+        selectedSeverity={severityFilter}
+        onSelectSeverity={setSeverityFilter}
+        severityCounts={severityCounts}
       />
 
       {/* Show Proximity Alert Banner if active */}
@@ -161,11 +191,14 @@ export default function App() {
         />
       )}
 
-      <StatsBar
-        totalEvents={events.length}
-        totalReporters={totalReporters}
-        criticalCount={criticalCount}
-      />
+      {/* Top Header: Clean Stats Bar */}
+      <div className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 pointer-events-auto">
+        <StatsBar
+          totalEvents={events.length}
+          affectedStreetsCount={affectedStreetsCount}
+          criticalCount={criticalCount}
+        />
+      </div>
 
       <ReportButton onClick={() => setShowReport(true)} />
 

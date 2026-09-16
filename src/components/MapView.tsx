@@ -12,6 +12,14 @@ interface MapViewProps {
   onSelect: (event: ReportEvent) => void;
   newReportLocation: { lat: number; lng: number } | null;
   userLocation?: { lat: number; lng: number } | null;
+  selectedSeverity?: Severity | 'todos';
+  onSelectSeverity?: (severity: Severity | 'todos') => void;
+  severityCounts?: {
+    todos: number;
+    critico: number;
+    moderado: number;
+    leve: number;
+  };
 }
 
 /**
@@ -207,14 +215,47 @@ function MapController({
   return null;
 }
 
+const NUBLE_BOUNDS: L.LatLngBoundsExpression = [
+  [-37.25, -73.10], // South-West (Límite Región de Ñuble)
+  [-35.95, -71.00], // North-East (Límite Región de Ñuble)
+];
+
+/**
+ * Listener to detect when user reaches the Ñuble bounds and notify discreetly
+ */
+function NubleBoundsListener({ onOutOfBounds }: { onOutOfBounds: () => void }) {
+  const map = useMap();
+  const lastNoticeRef = useRef(0);
+
+  useMapEvents({
+    drag: () => {
+      const center = map.getCenter();
+      const nubleBounds = L.latLngBounds([[-37.25, -73.10], [-35.95, -71.00]]);
+      if (!nubleBounds.contains(center)) {
+        const now = Date.now();
+        if (now - lastNoticeRef.current > 4000) {
+          lastNoticeRef.current = now;
+          onOutOfBounds();
+        }
+      }
+    },
+  });
+
+  return null;
+}
+
 export default function MapView({
   events,
   onSelect,
   newReportLocation,
   userLocation: propUserLocation,
+  selectedSeverity = 'todos',
+  onSelectSeverity,
+  severityCounts,
 }: MapViewProps) {
   const [internalUserLocation, setInternalUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [showBoundsNotice, setShowBoundsNotice] = useState(false);
   const [targetLocation, setTargetLocation] = useState<{
     lat: number;
     lng: number;
@@ -222,16 +263,28 @@ export default function MapView({
     timestamp: number;
   } | null>(null);
 
+  const hasInitiallyCenteredRef = useRef(false);
+  const boundsTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const activeUserLocation = propUserLocation ?? internalUserLocation;
 
-  // Initial Geolocation lookup on mount if not provided as prop
+  const handleOutOfBounds = useCallback(() => {
+    setShowBoundsNotice(true);
+    if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
+    boundsTimerRef.current = setTimeout(() => {
+      setShowBoundsNotice(false);
+    }, 3500);
+  }, []);
+
+  // Initial Geolocation lookup on mount: Auto-center ONLY ONCE on first fix
   useEffect(() => {
-    if (propUserLocation) {
+    if (propUserLocation && !hasInitiallyCenteredRef.current) {
+      hasInitiallyCenteredRef.current = true;
       setTargetLocation({ ...propUserLocation, zoom: 15, timestamp: Date.now() });
       return;
     }
 
-    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+    if (!propUserLocation && !hasInitiallyCenteredRef.current && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
       setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -240,7 +293,10 @@ export default function MapView({
             lng: position.coords.longitude,
           };
           setInternalUserLocation(coords);
-          setTargetLocation({ ...coords, zoom: 15, timestamp: Date.now() });
+          if (!hasInitiallyCenteredRef.current) {
+            hasInitiallyCenteredRef.current = true;
+            setTargetLocation({ ...coords, zoom: 15, timestamp: Date.now() });
+          }
           setIsLocating(false);
         },
         () => {
@@ -252,7 +308,7 @@ export default function MapView({
     }
   }, [propUserLocation]);
 
-  // Recenter to user's location or fallback to Chillán
+  // Recenter ONLY when user clicks the "Centrar en mi ubicación" button
   const handleRecenter = useCallback(() => {
     setIsLocating(true);
 
@@ -287,6 +343,9 @@ export default function MapView({
       <MapContainer
         center={[mockGpsLocation.lat, mockGpsLocation.lng]}
         zoom={14}
+        minZoom={9}
+        maxBounds={NUBLE_BOUNDS}
+        maxBoundsViscosity={1.0}
         zoomControl={false}
         touchZoom={true}
         doubleClickZoom={true}
@@ -303,12 +362,14 @@ export default function MapView({
           newReportLocation={newReportLocation}
         />
 
+        <NubleBoundsListener onOutOfBounds={handleOutOfBounds} />
+
         {/* 80m Danger radius circles around critical events (visible at close zoom) */}
         <CriticalEventCircles events={events} />
 
         <MarkerClusterGroup events={events} onSelect={onSelect} />
 
-        {/* User Location Marker (if available) */}
+        {/* User Location Marker (moves dynamically without moving camera) */}
         {activeUserLocation && (
           <Marker
             position={[activeUserLocation.lat, activeUserLocation.lng]}
@@ -325,25 +386,135 @@ export default function MapView({
         )}
       </MapContainer>
 
-      {/* Floating Legend */}
-      <div className="absolute top-16 left-4 z-[1000] pointer-events-auto select-none rounded-2xl bg-white/90 px-3.5 py-2.5 shadow-lg backdrop-blur-md border border-gray-100/90 text-xs">
-        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-          Severidad
-        </p>
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-700">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-red-200" />
-            <span>Crítico</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-700">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-amber-200" />
-            <span>Moderado</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-gray-700">
-            <span className="h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-green-200" />
-            <span>Leve</span>
+      {/* Discrete Notification when hitting Ñuble bounds */}
+      {showBoundsNotice && (
+        <div className="absolute top-20 left-1/2 z-[1100] -translate-x-1/2 animate-slide-down w-[90%] max-w-sm pointer-events-none">
+          <div className="flex items-center justify-center gap-2 rounded-2xl bg-gray-900/95 px-4 py-2.5 text-center text-xs font-medium text-white shadow-2xl backdrop-blur-md border border-gray-700">
+            <span>Por ahora solo cubrimos la Región de Ñuble — próximamente más regiones</span>
           </div>
         </div>
+      )}
+
+      {/* Interactive Severity Filter & Legend */}
+      <div className="absolute top-16 left-4 z-[1000] pointer-events-auto rounded-2xl bg-white/95 p-1.5 shadow-lg backdrop-blur-md border border-gray-100/90 text-xs flex flex-col gap-1 min-w-[130px]">
+        <div className="flex items-center justify-between px-2 pt-1 pb-0.5 border-b border-gray-100">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+            Severidad
+          </span>
+          {selectedSeverity !== 'todos' && (
+            <button
+              type="button"
+              onClick={() => onSelectSeverity?.('todos')}
+              className="text-[10px] text-blue-600 font-semibold hover:underline"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onSelectSeverity?.('critico')}
+          className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
+            selectedSeverity === 'critico'
+              ? 'bg-red-50 text-red-700 ring-1 ring-red-300 shadow-sm'
+              : 'text-gray-700 hover:bg-gray-100/80'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-red-200 shrink-0" />
+            <span>Crítico</span>
+          </div>
+          {severityCounts && (
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                selectedSeverity === 'critico'
+                  ? 'bg-red-200/80 text-red-800'
+                  : 'text-gray-400 bg-gray-100'
+              }`}
+            >
+              {severityCounts.critico}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectSeverity?.('moderado')}
+          className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
+            selectedSeverity === 'moderado'
+              ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-300 shadow-sm'
+              : 'text-gray-700 hover:bg-gray-100/80'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-amber-200 shrink-0" />
+            <span>Moderado</span>
+          </div>
+          {severityCounts && (
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                selectedSeverity === 'moderado'
+                  ? 'bg-amber-200/80 text-amber-800'
+                  : 'text-gray-400 bg-gray-100'
+              }`}
+            >
+              {severityCounts.moderado}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectSeverity?.('leve')}
+          className={`flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
+            selectedSeverity === 'leve'
+              ? 'bg-green-50 text-green-700 ring-1 ring-green-300 shadow-sm'
+              : 'text-gray-700 hover:bg-gray-100/80'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-green-200 shrink-0" />
+            <span>Leve</span>
+          </div>
+          {severityCounts && (
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                selectedSeverity === 'leve'
+                  ? 'bg-green-200/80 text-green-800'
+                  : 'text-gray-400 bg-gray-100'
+              }`}
+            >
+              {severityCounts.leve}
+            </span>
+          )}
+        </button>
+
+        <div className="h-px bg-gray-100 my-0.5" />
+
+        {/* Todos option below */}
+        <button
+          type="button"
+          onClick={() => onSelectSeverity?.('todos')}
+          className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl transition text-[11px] font-semibold text-left ${
+            selectedSeverity === 'todos'
+              ? 'bg-gray-900 text-white shadow-sm'
+              : 'text-gray-600 hover:bg-gray-100/80'
+          }`}
+        >
+          <span>Todos</span>
+          {severityCounts && (
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                selectedSeverity === 'todos'
+                  ? 'bg-white/20 text-white'
+                  : 'text-gray-400 bg-gray-100'
+              }`}
+            >
+              {severityCounts.todos}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Floating Recenter / Geolocation Button */}
