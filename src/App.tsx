@@ -15,6 +15,7 @@ import {
   confirmEvent,
   voteEventStatus,
 } from '@/services/eventsService';
+import { registerSession } from '@/services/sessionService';
 
 // Code-split dynamic chunks
 const AdminPanel = lazy(() => import('@/components/AdminPanel'));
@@ -86,10 +87,12 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserId(user.uid);
+        registerSession(user.uid);
       } else {
         try {
           const cred = await signInAnonymously(auth);
           setUserId(cred.user.uid);
+          registerSession(cred.user.uid);
         } catch (error) {
           console.error('Error signing in anonymously to Firebase:', error);
         }

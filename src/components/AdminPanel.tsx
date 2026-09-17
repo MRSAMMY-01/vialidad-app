@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '@/firebase';
 import { getMapThumbnailUrl } from '@/services/cloudinaryService';
+import { getSessionMetrics, type SessionMetrics } from '@/services/sessionService';
 import type { ReportEvent } from '@/data/mockEvents';
 import {
   ShieldCheck,
@@ -25,6 +26,10 @@ import {
   AlertTriangle,
   Loader2,
   ExternalLink,
+  Users,
+  UserCheck,
+  RotateCcw,
+  Activity,
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -35,6 +40,8 @@ export default function AdminPanel() {
   const [events, setEvents] = useState<ReportEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sessionMetrics, setSessionMetrics] = useState<SessionMetrics | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
 
   // 1. Listen to Auth state
   useEffect(() => {
@@ -63,12 +70,19 @@ export default function AdminPanel() {
     return () => unsubscribeAuth();
   }, []);
 
-  // 2. Subscribe to eventos collection when user is admin
+  // 2. Fetch events & session return metrics when user is admin
   useEffect(() => {
     if (!isAdmin) {
       setEvents([]);
+      setSessionMetrics(null);
       return;
     }
+
+    // Fetch session analytics
+    setLoadingMetrics(true);
+    getSessionMetrics()
+      .then((metrics) => setSessionMetrics(metrics))
+      .finally(() => setLoadingMetrics(false));
 
     setLoadingEvents(true);
     const colRef = collection(db, 'eventos');
@@ -337,7 +351,80 @@ export default function AdminPanel() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto p-4 lg:p-8 space-y-6">
-        <div className="flex items-center justify-between">
+        {/* User Retention & Activity Metrics */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                <Activity size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Métricas de Retorno y Usuarios</h3>
+                <p className="text-[11px] text-gray-500">Actividad calculada desde la colección de sesiones.</p>
+              </div>
+            </div>
+            {loadingMetrics && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Loader2 size={13} className="animate-spin text-blue-600" />
+                <span>Calculando...</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Total Unique Users */}
+            <div className="bg-gray-50/80 rounded-xl p-3.5 border border-gray-100">
+              <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-1">
+                <Users size={14} className="text-blue-600" />
+                <span>Usuarios Totales</span>
+              </div>
+              <p className="text-xl font-extrabold text-gray-900">
+                {sessionMetrics ? sessionMetrics.totalUniqueUsers : '-'}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">UIDs únicos registrados</p>
+            </div>
+
+            {/* Returning Users */}
+            <div className="bg-gray-50/80 rounded-xl p-3.5 border border-gray-100">
+              <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-1">
+                <UserCheck size={14} className="text-emerald-600" />
+                <span>Usuarios Recurrentes</span>
+              </div>
+              <p className="text-xl font-extrabold text-emerald-600">
+                {sessionMetrics ? sessionMetrics.returningUsers : '-'}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Visitas en 2+ días distintos</p>
+            </div>
+
+            {/* Return Rate */}
+            <div className="bg-gray-50/80 rounded-xl p-3.5 border border-gray-100">
+              <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-1">
+                <RotateCcw size={14} className="text-purple-600" />
+                <span>Tasa de Retorno</span>
+              </div>
+              <p className="text-xl font-extrabold text-purple-600">
+                {sessionMetrics && sessionMetrics.totalUniqueUsers > 0
+                  ? `${((sessionMetrics.returningUsers / sessionMetrics.totalUniqueUsers) * 100).toFixed(1)}%`
+                  : '0%'}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">% de retención comunitaria</p>
+            </div>
+
+            {/* Total Daily Sessions */}
+            <div className="bg-gray-50/80 rounded-xl p-3.5 border border-gray-100">
+              <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-1">
+                <Activity size={14} className="text-amber-600" />
+                <span>Sesiones Diarias</span>
+              </div>
+              <p className="text-xl font-extrabold text-amber-700">
+                {sessionMetrics ? sessionMetrics.totalSessions : '-'}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Total registros de sesión</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Listado de Reportes ({events.length})</h2>
             <p className="text-xs text-gray-500">Visualiza y elimina reportes de la comunidad.</p>
