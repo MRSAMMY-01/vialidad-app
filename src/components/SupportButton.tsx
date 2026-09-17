@@ -37,7 +37,7 @@ export default function SupportButton() {
                 <h4 className="text-xs font-bold text-gray-900 leading-tight">
                   ¿Te ha servido este mapa?
                 </h4>
-                <p className="text-[10px] text-gray-500">Chillán Reporta</p>
+                <p className="text-[10px] text-gray-500">Vialidad Ñuble</p>
               </div>
             </div>
             <button

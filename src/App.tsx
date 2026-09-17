@@ -1,14 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/firebase';
 import MapView from '@/components/MapView';
 import DetailModal from '@/components/DetailModal';
-import ReportFlow from '@/components/ReportFlow';
 import StatsBar from '@/components/StatsBar';
 import ReportButton from '@/components/ReportButton';
 import SupportButton from '@/components/SupportButton';
 import ProximityAlertBanner from '@/components/ProximityAlertBanner';
-import AdminPanel from '@/components/AdminPanel';
 import { useProximityAlert } from '@/hooks/useProximityAlert';
 import type { ReportEvent, EventStatus, Severity } from '@/data/mockEvents';
 import {
@@ -17,6 +15,10 @@ import {
   confirmEvent,
   voteEventStatus,
 } from '@/services/eventsService';
+
+// Code-split dynamic chunks
+const AdminPanel = lazy(() => import('@/components/AdminPanel'));
+const ReportFlow = lazy(() => import('@/components/ReportFlow'));
 
 // Helper to extract street names from title/description for unique affected streets calculation
 function extractStreetName(title: string, description: string): string {
@@ -166,7 +168,20 @@ export default function App() {
   };
 
   if (isAdminRoute) {
-    return <AdminPanel />;
+    return (
+      <Suspense
+        fallback={
+          <div className="flex h-screen w-screen items-center justify-center bg-gray-900 text-white">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+              <p className="text-xs text-gray-400 font-medium">Cargando panel de administración...</p>
+            </div>
+          </div>
+        }
+      >
+        <AdminPanel />
+      </Suspense>
+    );
   }
 
   return (
@@ -218,11 +233,22 @@ export default function App() {
       )}
 
       {showReport && (
-        <ReportFlow
-          onClose={() => setShowReport(false)}
-          onSubmit={handleNewReport}
-          currentUid={userId}
-        />
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/40 backdrop-blur-xs animate-fade-in p-0 sm:p-4">
+              <div className="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white p-8 flex flex-col items-center justify-center gap-3 shadow-2xl">
+                <div className="h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
+                <p className="text-xs font-semibold text-gray-600">Cargando formulario...</p>
+              </div>
+            </div>
+          }
+        >
+          <ReportFlow
+            onClose={() => setShowReport(false)}
+            onSubmit={handleNewReport}
+            currentUid={userId}
+          />
+        </Suspense>
       )}
     </main>
   );

@@ -1,7 +1,7 @@
 {
-  "name": "Chillán Reporta — Estado de las Calles",
-  "short_name": "Chillán Reporta",
-  "description": "Reporta el estado de las calles en Chillán y Chillán Viejo, Región de Ñuble.",
+  "name": "Vialidad Ñuble — Estado de las Calles",
+  "short_name": "Vialidad",
+  "description": "Mapa ciudadano en tiempo real sobre el estado de las calles, baches y cortes en la Región de Ñuble.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
