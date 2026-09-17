@@ -12,7 +12,7 @@ export default function ReportButton({ onClick }: ReportButtonProps) {
       aria-label="Reportar un bache"
     >
       <Plus size={16} className="stroke-[2.5]" />
-      <span>Reportar</span>
+      <span>Reportar bache</span>
     </button>
   );
 }
