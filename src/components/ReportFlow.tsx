@@ -111,6 +111,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
     return '';
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const typeOptions: { key: EventType; label: string; icon: typeof Ban }[] = [
     { key: 'bache', label: 'Bache / Daño', icon: AlertTriangle },
@@ -169,6 +170,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
 
     try {
       setIsSubmitting(true);
+      setSubmitError(null);
       const today = new Date().toISOString().split('T')[0];
       const trimmedReporter = reporterName.trim();
       const finalReporter = trimmedReporter || 'Vecino/a de Chillán';
@@ -194,8 +196,19 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
         uid: currentUid || undefined,
       };
       await onSubmit(newEvent);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting report to Firestore:', err);
+      const isPermissionOrCooldown =
+        err?.code === 'permission-denied' ||
+        err?.message?.toLowerCase().includes('permission') ||
+        err?.message?.toLowerCase().includes('permiso') ||
+        err?.message?.toLowerCase().includes('insufficient');
+
+      if (isPermissionOrCooldown) {
+        setSubmitError('Ya reportaste recientemente. Espera unos minutos antes de crear otro reporte.');
+      } else {
+        setSubmitError(err?.message || 'Hubo un problema al enviar el reporte. Inténtalo nuevamente.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -578,6 +591,17 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
                   className="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
               </div>
+
+              {/* Rate limit / Cooldown / Error alert */}
+              {submitError && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-3.5 flex items-start gap-2.5 text-xs text-amber-900 shadow-sm animate-slide-up">
+                  <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-amber-950">Atención</p>
+                    <p className="text-amber-800 leading-relaxed">{submitError}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

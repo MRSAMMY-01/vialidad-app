@@ -161,6 +161,7 @@ export default function App() {
       }, 300);
     } catch (err) {
       console.error('Error al crear reporte en Firestore:', err);
+      throw err;
     }
   };
 

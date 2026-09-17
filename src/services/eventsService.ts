@@ -1,12 +1,13 @@
 import {
   collection,
   onSnapshot,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
   increment,
   arrayUnion,
+  writeBatch,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/firebase';
 import type { ReportEvent, EventStatus } from '@/data/mockEvents';
@@ -71,12 +72,16 @@ export function subscribeToEvents(
 }
 
 /**
- * Creates a new report document in Firestore.
+ * Creates a new report document in Firestore using a writeBatch to atomically
+ * record the event in 'eventos' and update 'reportLimits/{uid}' for spam/cooldown prevention.
  */
 export async function createEvent(
   newEvent: Omit<ReportEvent, 'id' | 'yaConfirme' | 'yaVoteEstado'> & { uid?: string }
 ) {
-  const colRef = collection(db, EVENTS_COLLECTION);
+  const batch = writeBatch(db);
+
+  // 1. Create document in 'eventos' with generated ID
+  const eventDocRef = doc(collection(db, EVENTS_COLLECTION));
   const docData = {
     ...newEvent,
     confirmations: 0,
@@ -84,9 +89,17 @@ export async function createEvent(
     votedUids: [],
     createdAt: new Date().toISOString(),
   };
+  batch.set(eventDocRef, docData);
 
-  const docRef = await addDoc(colRef, docData);
-  return docRef.id;
+  // 2. Update/create rate limit record in 'reportLimits'
+  if (newEvent.uid) {
+    const limitDocRef = doc(db, 'reportLimits', newEvent.uid);
+    batch.set(limitDocRef, { lastReportAt: serverTimestamp() }, { merge: true });
+  }
+
+  // 3. Commit atomic batch
+  await batch.commit();
+  return eventDocRef.id;
 }
 
 /**
