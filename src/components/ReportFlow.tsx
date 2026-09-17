@@ -256,7 +256,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
               </button>
             )}
             <div>
-              <h2 className="text-base font-bold text-gray-900">Reportar un bache</h2>
+              <h2 className="text-base font-bold text-gray-900">Reportar problema</h2>
               <p className="text-xs text-gray-500">Paso {step} de 3</p>
             </div>
           </div>
