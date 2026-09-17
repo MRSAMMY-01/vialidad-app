@@ -196,7 +196,9 @@ export default function DetailModal({
 
           <div className="flex items-center justify-between rounded-xl bg-blue-50 px-4 py-3">
             <span className="text-sm font-medium text-blue-900">
-              {event.confirmations} persona{event.confirmations !== 1 ? 's' : ''} confirmó{event.confirmations !== 1 ? 'aron' : ''} este reporte
+              {event.confirmations === 1
+                ? '1 persona confirmó este reporte'
+                : `${event.confirmations} personas confirmaron este reporte`}
             </span>
             {event.yaConfirme && (
               <span className="flex items-center gap-1 text-sm font-semibold text-green-600">
