@@ -12,11 +12,13 @@ import {
   getDoc,
   onSnapshot,
   deleteDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { auth, db } from '@/firebase';
 import { getMapThumbnailUrl } from '@/services/cloudinaryService';
 import { getSessionMetrics, type SessionMetrics } from '@/services/sessionService';
-import type { ReportEvent } from '@/data/mockEvents';
+import LocationPickerMap from '@/components/LocationPickerMap';
+import type { ReportEvent, EventType, Severity, EventStatus } from '@/data/mockEvents';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -30,6 +32,10 @@ import {
   UserCheck,
   RotateCcw,
   Activity,
+  MapPin,
+  Save,
+  X,
+  Pencil,
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -42,6 +48,23 @@ export default function AdminPanel() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sessionMetrics, setSessionMetrics] = useState<SessionMetrics | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
+
+  // Repositioning state
+  const [editingLocationEvent, setEditingLocationEvent] = useState<ReportEvent | null>(null);
+  const [tempLocation, setTempLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
+
+  // Report Details Edit state
+  const [editingEvent, setEditingEvent] = useState<ReportEvent | null>(null);
+  const [editFormData, setEditFormData] = useState<{
+    title: string;
+    description: string;
+    reporter: string;
+    tipo: EventType;
+    severity: Severity;
+    estado: EventStatus;
+  } | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // 1. Listen to Auth state
   useEffect(() => {
@@ -166,6 +189,55 @@ export default function AdminPanel() {
       alert(`Error al eliminar: ${err.message || 'No tienes permisos para realizar esta acción.'}`);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // Reposition event location action
+  const handleSaveLocation = async () => {
+    if (!editingLocationEvent || !tempLocation) return;
+    try {
+      setIsSavingLocation(true);
+      const eventRef = doc(db, 'eventos', editingLocationEvent.id);
+      await updateDoc(eventRef, {
+        lat: tempLocation.lat,
+        lng: tempLocation.lng,
+      });
+      setEditingLocationEvent(null);
+      setTempLocation(null);
+    } catch (err: any) {
+      console.error('Error al actualizar ubicación del reporte:', err);
+      alert(`Error al guardar la nueva ubicación: ${err.message || 'Error de permisos o conexión.'}`);
+    } finally {
+      setIsSavingLocation(false);
+    }
+  };
+
+  // Edit report details action
+  const handleSaveEdit = async () => {
+    if (!editingEvent || !editFormData) return;
+    if (!editFormData.title.trim() || !editFormData.description.trim()) {
+      alert('El título y la descripción no pueden estar vacíos.');
+      return;
+    }
+
+    try {
+      setIsSavingEdit(true);
+      const eventRef = doc(db, 'eventos', editingEvent.id);
+      await updateDoc(eventRef, {
+        title: editFormData.title.trim(),
+        description: editFormData.description.trim(),
+        reporter: editFormData.reporter.trim() || 'Vecino/a de Chillán',
+        tipo: editFormData.tipo,
+        severity: editFormData.severity,
+        estado: editFormData.estado,
+      });
+      setEditingEvent(null);
+      setEditFormData(null);
+    } catch (err: any) {
+      console.error('Error al actualizar datos del reporte:', err);
+      alert(`Error al guardar cambios: ${err.message || 'Error de permisos o conexión.'}`);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -527,13 +599,46 @@ export default function AdminPanel() {
                         {ev.date}
                       </td>
 
-                      {/* Eliminar */}
-                      <td className="px-4 py-3 whitespace-nowrap text-right">
+                      {/* Acciones */}
+                      <td className="px-4 py-3 whitespace-nowrap text-right space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingEvent(ev);
+                            setEditFormData({
+                              title: ev.title,
+                              description: ev.description,
+                              reporter: ev.reporter,
+                              tipo: ev.tipo,
+                              severity: ev.severity,
+                              estado: ev.estado,
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-800 hover:text-white border border-gray-200 text-xs font-medium transition"
+                          title="Editar título, descripción y datos"
+                        >
+                          <Pencil size={13} />
+                          <span>Editar</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingLocationEvent(ev);
+                            setTempLocation({ lat: ev.lat, lng: ev.lng });
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs font-medium transition"
+                          title="Corregir ubicación en el mapa"
+                        >
+                          <MapPin size={13} />
+                          <span>Ubicación</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handleDelete(ev.id, ev.title)}
                           disabled={deletingId === ev.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 text-xs font-medium transition disabled:opacity-50"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 text-xs font-medium transition disabled:opacity-50"
                         >
                           {deletingId === ev.id ? (
                             <Loader2 size={13} className="animate-spin" />
@@ -551,6 +656,200 @@ export default function AdminPanel() {
           </div>
         )}
       </main>
+
+      {/* Reposition Report Location Modal */}
+      {editingLocationEvent && tempLocation && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in"
+          onClick={() => setEditingLocationEvent(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Corregir Ubicación del Reporte</h3>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{editingLocationEvent.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingLocationEvent(null)}
+                className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <LocationPickerMap
+                location={tempLocation}
+                onChangeLocation={setTempLocation}
+                heightClassName="h-64"
+                hintText="Arrastra el marcador azul a la calle exacta"
+              />
+              <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3.5 py-2 border border-gray-100 text-xs text-gray-600">
+                <div className="flex items-center gap-1.5">
+                  <MapPin size={14} className="text-blue-600" />
+                  <span className="font-mono">{tempLocation.lat.toFixed(5)}, {tempLocation.lng.toFixed(5)}</span>
+                </div>
+                <span className="text-[11px] text-gray-400">Nuevas coordenadas</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setEditingLocationEvent(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveLocation}
+                disabled={isSavingLocation}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition disabled:opacity-50 active:scale-95"
+              >
+                {isSavingLocation ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Save size={14} />
+                )}
+                <span>{isSavingLocation ? 'Guardando...' : 'Guardar ubicación'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Report Details Modal */}
+      {editingEvent && editFormData && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in"
+          onClick={() => setEditingEvent(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-scale-in max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Editar Reporte</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Corrige títulos, descripciones o categorías</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingEvent(null)}
+                className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Título</label>
+                <input
+                  type="text"
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  className="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  placeholder="ej. Bache en Av. O'Higgins"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Descripción</label>
+                <textarea
+                  value={editFormData.description}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                  rows={3}
+                  className="w-full rounded-xl border border-gray-300 px-3.5 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+                  placeholder="Descripción detallada del daño vial"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Tipo de Evento</label>
+                  <select
+                    value={editFormData.tipo}
+                    onChange={(e) => setEditFormData({ ...editFormData, tipo: e.target.value as EventType })}
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium bg-white outline-none focus:border-blue-500"
+                  >
+                    <option value="bache">Bache / Daño</option>
+                    <option value="corte_calle">Corte de calle</option>
+                    <option value="otro">Otro problema</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Peligro Vial</label>
+                  <select
+                    value={editFormData.severity}
+                    onChange={(e) => setEditFormData({ ...editFormData, severity: e.target.value as Severity })}
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium bg-white outline-none focus:border-blue-500 capitalize"
+                  >
+                    <option value="leve">Leve (Verde)</option>
+                    <option value="moderado">Moderado (Amarillo)</option>
+                    <option value="critico">Crítico (Rojo)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Estado</label>
+                  <select
+                    value={editFormData.estado}
+                    onChange={(e) => setEditFormData({ ...editFormData, estado: e.target.value as EventStatus })}
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium bg-white outline-none focus:border-blue-500 capitalize"
+                  >
+                    <option value="activo">Activo</option>
+                    <option value="intervencion_parcial">Intervención Parcial</option>
+                    <option value="resuelto">Resuelto</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Reportero</label>
+                  <input
+                    type="text"
+                    value={editFormData.reporter}
+                    onChange={(e) => setEditFormData({ ...editFormData, reporter: e.target.value })}
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs outline-none focus:border-blue-500"
+                    placeholder="Nombre o alias"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setEditingEvent(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={isSavingEdit}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md transition disabled:opacity-50 active:scale-95"
+              >
+                {isSavingEdit ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Save size={14} />
+                )}
+                <span>{isSavingEdit ? 'Guardando...' : 'Guardar cambios'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

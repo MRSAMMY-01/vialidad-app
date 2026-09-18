@@ -1,6 +1,4 @@
-import { useState, useRef, useEffect, useMemo, type ChangeEvent } from 'react';
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
+import { useState, type ChangeEvent } from 'react';
 import {
   Camera,
   X,
@@ -14,13 +12,12 @@ import {
   Construction,
   Loader2,
   RotateCcw,
-  Users,
   Locate,
 } from 'lucide-react';
 import type { Severity, EventType, ReportEvent } from '@/data/mockEvents';
 import { severityConfig, mockGpsLocation } from '@/data/mockEvents';
 import { compressAndUploadImage } from '@/services/cloudinaryService';
-import { createGpsIcon } from '@/utils/mapIcons';
+import LocationPickerMap from '@/components/LocationPickerMap';
 
 interface ReportFlowProps {
   onClose: () => void;
@@ -36,59 +33,6 @@ const hexToRgba = (hex: string, opacity: number) => {
   return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
 };
 
-function LocationPickerEvents({
-  location,
-  onChangeLocation,
-}: {
-  location: { lat: number; lng: number };
-  onChangeLocation: (loc: { lat: number; lng: number }) => void;
-}) {
-  const map = useMap();
-  const markerRef = useRef<L.Marker | null>(null);
-
-  // Invalidate size on mount to ensure tiles render
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      map.invalidateSize();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [map]);
-
-  // When location changes externally (e.g. GPS button clicked), pan to it
-  useEffect(() => {
-    map.flyTo([location.lat, location.lng], map.getZoom(), { duration: 0.5 });
-  }, [location.lat, location.lng, map]);
-
-  useMapEvents({
-    click(e) {
-      onChangeLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
-    },
-  });
-
-  const eventHandlers = useMemo(
-    () => ({
-      dragend() {
-        const marker = markerRef.current;
-        if (marker != null) {
-          const newLatLng = marker.getLatLng();
-          onChangeLocation({ lat: newLatLng.lat, lng: newLatLng.lng });
-        }
-      },
-    }),
-    [onChangeLocation]
-  );
-
-  return (
-    <Marker
-      draggable={true}
-      eventHandlers={eventHandlers}
-      position={[location.lat, location.lng]}
-      ref={markerRef}
-      icon={createGpsIcon()}
-    />
-  );
-}
-
 export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlowProps) {
   const [step, setStep] = useState(1);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -100,6 +44,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
   const [tipo, setTipo] = useState<EventType>('bache');
   const [severity, setSeverity] = useState<Severity | null>(null);
   const [location, setLocation] = useState(mockGpsLocation);
+  const [locationConfirmed, setLocationConfirmed] = useState(false);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [title, setTitle] = useState('');
@@ -219,7 +164,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
       ? !!photo && !isUploadingPhoto && !uploadError
       : step === 2
         ? (tipo === 'corte_calle' || !!severity)
-        : !!title.trim() && !!description.trim();
+        : !!title.trim() && !!description.trim() && locationConfirmed;
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
@@ -233,6 +178,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         setLocation({ lat: coords.latitude, lng: coords.longitude });
+        setLocationConfirmed(true);
         setLocationMessage('Ubicación actualizada con tu GPS.');
         setIsLocating(false);
       },
@@ -508,26 +454,29 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
 
               {/* Interactive Mini Map Picker */}
               <div className="space-y-2">
-                <div className="relative h-44 w-full rounded-2xl border border-gray-200 shadow-inner overflow-hidden z-0">
-                  <MapContainer
-                    center={[location.lat, location.lng]}
-                    zoom={16}
-                    scrollWheelZoom={false}
-                    className="h-full w-full"
-                  >
-                    <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                    <LocationPickerEvents
-                      location={location}
-                      onChangeLocation={setLocation}
-                    />
-                  </MapContainer>
-                  <div className="absolute top-2 left-2 pointer-events-none bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-medium text-white shadow">
-                    Arrastra el marcador azul al bache
+                <LocationPickerMap
+                  location={location}
+                  onChangeLocation={(loc) => {
+                    setLocation(loc);
+                    setLocationConfirmed(true);
+                  }}
+                  onInteract={() => setLocationConfirmed(true)}
+                  heightClassName="h-44"
+                  hintText="Mueve el pin o toca la calle del daño"
+                />
+
+                {/* Status prompt for location confirmation */}
+                {!locationConfirmed ? (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 flex items-center gap-2 text-xs font-medium text-amber-900 animate-pulse">
+                    <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                    <span>Toca el mapa o usa tu GPS para marcar la ubicación exacta.</span>
                   </div>
-                </div>
+                ) : (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                    <Check size={15} className="text-emerald-600 shrink-0" />
+                    <span>Ubicación seleccionada correctamente</span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-3.5 py-2">
                   <div className="flex items-center gap-1.5 text-xs text-gray-600">
