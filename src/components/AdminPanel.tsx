@@ -52,7 +52,42 @@ export default function AdminPanel() {
   // Repositioning state
   const [editingLocationEvent, setEditingLocationEvent] = useState<ReportEvent | null>(null);
   const [tempLocation, setTempLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [coordInput, setCoordInput] = useState('');
+  const [coordError, setCoordError] = useState<string | null>(null);
   const [isSavingLocation, setIsSavingLocation] = useState(false);
+
+  // Reposition event location action
+  const handleApplyCoords = () => {
+    if (!coordInput.trim()) {
+      setCoordError('Ingresa coordenadas en formato "lat, lng"');
+      return;
+    }
+    const commaParts = coordInput.split(',');
+    let latVal: number;
+    let lngVal: number;
+
+    if (commaParts.length === 2) {
+      latVal = Number(commaParts[0].trim());
+      lngVal = Number(commaParts[1].trim());
+    } else {
+      const spaceParts = coordInput.trim().split(/\s+/);
+      if (spaceParts.length === 2) {
+        latVal = Number(spaceParts[0].trim());
+        lngVal = Number(spaceParts[1].trim());
+      } else {
+        setCoordError('Formato inválido. Usa: ej. -36.6068, -72.1008');
+        return;
+      }
+    }
+
+    if (isNaN(latVal) || isNaN(lngVal) || latVal < -90 || latVal > 90 || lngVal < -180 || lngVal > 180) {
+      setCoordError('Coordenadas no válidas. Asegúrate de ingresar números válidos.');
+      return;
+    }
+
+    setTempLocation({ lat: latVal, lng: lngVal });
+    setCoordError(null);
+  };
 
   // Report Details Edit state
   const [editingEvent, setEditingEvent] = useState<ReportEvent | null>(null);
@@ -626,6 +661,8 @@ export default function AdminPanel() {
                           onClick={() => {
                             setEditingLocationEvent(ev);
                             setTempLocation({ lat: ev.lat, lng: ev.lng });
+                            setCoordInput(`${ev.lat}, ${ev.lng}`);
+                            setCoordError(null);
                           }}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs font-medium transition"
                           title="Corregir ubicación en el mapa"
@@ -681,10 +718,49 @@ export default function AdminPanel() {
               </button>
             </div>
 
+            {/* Direct Coordinate Input */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-gray-700">
+                Pegar coordenadas directas (lat, lng)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={coordInput}
+                  onChange={(e) => {
+                    setCoordInput(e.target.value);
+                    if (coordError) setCoordError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleApplyCoords();
+                    }
+                  }}
+                  placeholder="ej. -36.5432, -71.9876"
+                  className="flex-1 rounded-xl border border-gray-300 px-3 py-2 text-xs font-mono outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyCoords}
+                  className="shrink-0 px-3.5 py-2 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-semibold shadow-sm transition active:scale-95"
+                >
+                  Ir a coordenadas
+                </button>
+              </div>
+              {coordError && (
+                <p className="text-[11px] text-red-600 font-medium">{coordError}</p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <LocationPickerMap
                 location={tempLocation}
-                onChangeLocation={setTempLocation}
+                onChangeLocation={(loc) => {
+                  setTempLocation(loc);
+                  setCoordInput(`${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`);
+                  setCoordError(null);
+                }}
                 heightClassName="h-64"
                 hintText="Arrastra el marcador azul a la calle exacta"
               />
