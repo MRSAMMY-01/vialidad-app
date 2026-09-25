@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/firebase';
 import MapView from '@/components/MapView';
@@ -60,25 +60,30 @@ export default function App() {
 
   const { currentPosition, activeAlert, dismissAlert } = useProximityAlert(events);
 
-  const activeEvents = events.filter((e) => e.estado !== 'resuelto');
-  const affectedStreetsCount = new Set(
-    activeEvents.map((e) => extractStreetName(e.title, e.description)).filter(Boolean)
-  ).size;
-  const criticalCount = events.filter((e) => e.severity === 'critico' && e.estado !== 'resuelto').length;
+  const activeEvents = useMemo(() => events.filter((e) => e.estado !== 'resuelto'), [events]);
+  const affectedStreetsCount = useMemo(
+    () => new Set(activeEvents.map((e) => extractStreetName(e.title, e.description)).filter(Boolean)).size,
+    [activeEvents]
+  );
+  const criticalCount = useMemo(
+    () => events.filter((e) => e.severity === 'critico' && e.estado !== 'resuelto').length,
+    [events]
+  );
 
-  const severityCounts = {
-    todos: events.length,
-    critico: events.filter((e) => e.severity === 'critico').length,
-    moderado: events.filter((e) => e.severity === 'moderado').length,
-    leve: events.filter((e) => e.severity === 'leve').length,
-  };
+  const severityCounts = useMemo(
+    () => ({
+      todos: events.length,
+      critico: events.filter((e) => e.severity === 'critico').length,
+      moderado: events.filter((e) => e.severity === 'moderado').length,
+      leve: events.filter((e) => e.severity === 'leve').length,
+    }),
+    [events]
+  );
 
-  const filteredEvents = events.filter((e) => {
-    if (severityFilter !== 'todos' && e.severity !== severityFilter) {
-      return false;
-    }
-    return true;
-  });
+  const filteredEvents = useMemo(() => {
+    if (severityFilter === 'todos') return events;
+    return events.filter((e) => e.severity === severityFilter);
+  }, [events, severityFilter]);
 
   // 1. Silent anonymous authentication on mount (only for map/public view)
   useEffect(() => {

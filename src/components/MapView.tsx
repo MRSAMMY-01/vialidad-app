@@ -132,6 +132,10 @@ function MarkerClusterGroup({
     });
 
     events.forEach((event) => {
+      const lat = Number(event.lat);
+      const lng = Number(event.lng);
+      if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return;
+
       const isResolved = event.estado === 'resuelto';
       const isPartial = event.estado === 'intervencion_parcial';
 
@@ -139,14 +143,15 @@ function MarkerClusterGroup({
         ? '#9ca3af'
         : isPartial
           ? '#d97706'
-          : severityConfig[event.severity as Severity].color;
+          : severityConfig[event.severity as Severity]?.color || '#f59e0b';
 
-      const marker = L.marker([event.lat, event.lng], {
+      const marker = L.marker([lat, lng], {
         icon: createSeverityIcon(pinColor),
         opacity: isResolved ? 0.75 : 1,
       });
-      (marker as unknown as { severity: Severity; estado: string }).severity = event.severity;
-      (marker as unknown as { severity: Severity; estado: string }).estado = event.estado;
+      (marker as unknown as { severity: Severity; estado: string; eventId: string }).severity = event.severity;
+      (marker as unknown as { severity: Severity; estado: string; eventId: string }).estado = event.estado;
+      (marker as unknown as { severity: Severity; estado: string; eventId: string }).eventId = event.id;
       marker.on('click', () => onSelect(event));
       clusterGroup.addLayer(marker);
     });
