@@ -191,9 +191,10 @@ export default function AdminPanel() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al iniciar sesión con Google:', err);
-      alert(`Error al iniciar sesión: ${err.message || 'Intente nuevamente'}`);
+      const msg = err instanceof Error ? err.message : 'Intente nuevamente';
+      alert(`Error al iniciar sesión: ${msg}`);
     }
   };
 
@@ -219,9 +220,10 @@ export default function AdminPanel() {
     try {
       setDeletingId(id);
       await deleteDoc(doc(db, 'eventos', id));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al eliminar el reporte:', err);
-      alert(`Error al eliminar: ${err.message || 'No tienes permisos para realizar esta acción.'}`);
+      const msg = err instanceof Error ? err.message : 'No tienes permisos para realizar esta acción.';
+      alert(`Error al eliminar: ${msg}`);
     } finally {
       setDeletingId(null);
     }
@@ -239,9 +241,10 @@ export default function AdminPanel() {
       });
       setEditingLocationEvent(null);
       setTempLocation(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al actualizar ubicación del reporte:', err);
-      alert(`Error al guardar la nueva ubicación: ${err.message || 'Error de permisos o conexión.'}`);
+      const msg = err instanceof Error ? err.message : 'Error de permisos o conexión.';
+      alert(`Error al guardar la nueva ubicación: ${msg}`);
     } finally {
       setIsSavingLocation(false);
     }
@@ -268,9 +271,10 @@ export default function AdminPanel() {
       });
       setEditingEvent(null);
       setEditFormData(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al actualizar datos del reporte:', err);
-      alert(`Error al guardar cambios: ${err.message || 'Error de permisos o conexión.'}`);
+      const msg = err instanceof Error ? err.message : 'Error de permisos o conexión.';
+      alert(`Error al guardar cambios: ${msg}`);
     } finally {
       setIsSavingEdit(false);
     }
@@ -306,9 +310,11 @@ export default function AdminPanel() {
   const formatTipo = (tipo: string) => {
     switch (tipo) {
       case 'bache':
-        return 'Bache / Daño';
+        return 'Bache';
       case 'corte_calle':
-        return 'Corte de calle';
+        return 'Obstrucción';
+      case 'peligro_via':
+        return 'Peligro en la vía';
       default:
         return 'Otro problema';
     }
@@ -854,8 +860,9 @@ export default function AdminPanel() {
                     onChange={(e) => setEditFormData({ ...editFormData, tipo: e.target.value as EventType })}
                     className="w-full rounded-xl border border-gray-300 px-3 py-2 text-xs font-medium bg-white outline-none focus:border-blue-500"
                   >
-                    <option value="bache">Bache / Daño</option>
-                    <option value="corte_calle">Corte de calle</option>
+                    <option value="bache">Bache</option>
+                    <option value="corte_calle">Obstrucción</option>
+                    <option value="peligro_via">Peligro en la vía</option>
                     <option value="otro">Otro problema</option>
                   </select>
                 </div>

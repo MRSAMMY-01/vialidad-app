@@ -3,7 +3,6 @@ import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/firebase';
 import MapView from '@/components/MapView';
 import DetailModal from '@/components/DetailModal';
-import StatsBar from '@/components/StatsBar';
 import ReportButton from '@/components/ReportButton';
 import SupportButton from '@/components/SupportButton';
 import ProximityAlertBanner from '@/components/ProximityAlertBanner';
@@ -20,15 +19,6 @@ import { registerSession } from '@/services/sessionService';
 // Code-split dynamic chunks
 const AdminPanel = lazy(() => import('@/components/AdminPanel'));
 const ReportFlow = lazy(() => import('@/components/ReportFlow'));
-
-// Helper to extract street names from title/description for unique affected streets calculation
-function extractStreetName(title: string, description: string): string {
-  const match = title.match(/(?:en\s+|calle\s+|av\.?\s+|avenida\s+|psje\.?\s+|pasaje\s+)([^,.-]+)/i);
-  if (match && match[1]) {
-    return match[1].trim().toLowerCase();
-  }
-  return title.trim().toLowerCase();
-}
 
 export default function App() {
   const checkIsAdminRoute = () => {
@@ -59,16 +49,6 @@ export default function App() {
   }, []);
 
   const { currentPosition, activeAlert, dismissAlert } = useProximityAlert(events);
-
-  const activeEvents = useMemo(() => events.filter((e) => e.estado !== 'resuelto'), [events]);
-  const affectedStreetsCount = useMemo(
-    () => new Set(activeEvents.map((e) => extractStreetName(e.title, e.description)).filter(Boolean)).size,
-    [activeEvents]
-  );
-  const criticalCount = useMemo(
-    () => events.filter((e) => e.severity === 'critico' && e.estado !== 'resuelto').length,
-    [events]
-  );
 
   const severityCounts = useMemo(
     () => ({
@@ -215,15 +195,6 @@ export default function App() {
           }}
         />
       )}
-
-      {/* Top Header: Clean Stats Bar */}
-      <header className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 pointer-events-auto">
-        <StatsBar
-          totalEvents={events.length}
-          affectedStreetsCount={affectedStreetsCount}
-          criticalCount={criticalCount}
-        />
-      </header>
 
       {/* Support Project Button (Bottom-Left) */}
       <SupportButton />

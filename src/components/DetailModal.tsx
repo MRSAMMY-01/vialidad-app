@@ -9,6 +9,7 @@ import {
   Wrench,
   RefreshCw,
   AlertCircle,
+  AlertTriangle,
   Construction,
 } from 'lucide-react';
 import type { ReportEvent, EventStatus } from '@/data/mockEvents';
@@ -152,10 +153,19 @@ export default function DetailModal({
                 </div>
               )}
 
-              {event.tipo === 'corte_calle' && (
+              {event.tipo && (
                 <div className="flex items-center gap-1.5 rounded-full bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-                  <Ban size={14} className="text-red-400" />
-                  Corte de calle
+                  {event.tipo === 'corte_calle' && <Ban size={14} className="text-amber-400" />}
+                  {event.tipo === 'peligro_via' && <AlertTriangle size={14} className="text-amber-400" />}
+                  <span>
+                    {event.tipo === 'corte_calle'
+                      ? 'Obstrucción'
+                      : event.tipo === 'peligro_via'
+                        ? 'Peligro en la vía'
+                        : event.tipo === 'bache'
+                          ? 'Bache'
+                          : 'Otro problema'}
+                  </span>
                 </div>
               )}
             </div>

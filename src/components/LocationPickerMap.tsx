@@ -2,6 +2,7 @@ import { useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { createGpsIcon } from '@/utils/mapIcons';
+import { NUBLE_MAP_BOUNDS } from '@/utils/geoBounds';
 
 interface LocationPickerEventsProps {
   location: { lat: number; lng: number };
@@ -84,6 +85,9 @@ export default function LocationPickerMap({
       <MapContainer
         center={[location.lat, location.lng]}
         zoom={zoom}
+        minZoom={9}
+        maxBounds={NUBLE_MAP_BOUNDS}
+        maxBoundsViscosity={1.0}
         scrollWheelZoom={false}
         className="h-full w-full"
       >

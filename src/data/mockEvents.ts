@@ -1,5 +1,5 @@
 export type Severity = 'leve' | 'moderado' | 'critico';
-export type EventType = 'bache' | 'corte_calle' | 'otro';
+export type EventType = 'bache' | 'corte_calle' | 'peligro_via' | 'otro';
 export type EventStatus = 'activo' | 'intervencion_parcial' | 'resuelto';
 
 export interface ReportEvent {
@@ -27,6 +27,7 @@ export interface ReportEvent {
   uid?: string;
   confirmedUids?: string[];
   votedUids?: string[];
+  createdAt?: string;
 }
 
 const photos = {

@@ -3,21 +3,18 @@ import {
   Camera,
   X,
   Check,
-  MapPin,
   ChevronLeft,
   AlertTriangle,
   AlertCircle,
   OctagonAlert,
-  Ban,
-  Construction,
   Loader2,
   RotateCcw,
-  Locate,
 } from 'lucide-react';
 import type { Severity, EventType, ReportEvent } from '@/data/mockEvents';
 import { severityConfig, mockGpsLocation } from '@/data/mockEvents';
+import { isWithinNubleBounds, OUT_OF_BOUNDS_MESSAGE } from '@/utils/geoBounds';
 import { compressAndUploadImage } from '@/services/cloudinaryService';
-import LocationPickerMap from '@/components/LocationPickerMap';
+import FixedPinLocationPicker from '@/components/FixedPinLocationPicker';
 
 interface ReportFlowProps {
   onClose: () => void;
@@ -45,23 +42,64 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
   const [severity, setSeverity] = useState<Severity | null>(null);
   const [location, setLocation] = useState(mockGpsLocation);
   const [locationConfirmed, setLocationConfirmed] = useState(false);
+  const [detectedAddress, setDetectedAddress] = useState<string | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+
+  // Reporter name selection state (default chip vs custom text)
+  const [isCustomReporter, setIsCustomReporter] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('nombreReportero');
+      return !!saved && saved.trim() !== '' && saved !== 'Vecino/a de Ñuble' && saved !== 'Vecino/a de Chillán';
+    }
+    return false;
+  });
+
   const [reporterName, setReporterName] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('nombreReportero') || '';
+      const saved = localStorage.getItem('nombreReportero');
+      if (saved && saved.trim() !== '' && saved !== 'Vecino/a de Ñuble' && saved !== 'Vecino/a de Chillán') {
+        return saved;
+      }
     }
     return '';
   });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const typeOptions: { key: EventType; label: string; icon: typeof Ban }[] = [
-    { key: 'bache', label: 'Bache / Daño', icon: AlertTriangle },
-    { key: 'corte_calle', label: 'Corte de calle', icon: Ban },
-    { key: 'otro', label: 'Otro problema', icon: Construction },
+  const typeOptions: {
+    key: EventType;
+    label: string;
+    emoji: string;
+    description: string;
+  }[] = [
+    {
+      key: 'bache',
+      label: 'Bache',
+      emoji: '🕳️',
+      description: 'Hoyos, desniveles, grietas, pavimento en mal estado',
+    },
+    {
+      key: 'corte_calle',
+      label: 'Obstrucción',
+      emoji: '🚧',
+      description: 'Bloqueo del paso: contenedores, escombros acumulados o estructuras en la calzada o ciclovía',
+    },
+    {
+      key: 'peligro_via',
+      label: 'Peligro en la vía',
+      emoji: '⚠️',
+      description: 'Riesgo de accidente: tapas de alcantarilla abiertas, cables caídos, postes inclinados o derrumbes',
+    },
+    {
+      key: 'otro',
+      label: 'Otro problema',
+      emoji: '➕',
+      description: 'Otros incidentes viales que requieran atención',
+    },
   ];
 
   const severityOptions: { key: Severity; icon: typeof AlertCircle }[] = [
@@ -79,9 +117,10 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
     try {
       const secureUrl = await compressAndUploadImage(file);
       setPhoto(secureUrl);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error al subir imagen a Cloudinary:', err);
-      setUploadError(err.message || 'No se pudo subir la foto. Comprueba tu conexión a internet.');
+      const msg = err instanceof Error ? err.message : 'No se pudo subir la foto. Comprueba tu conexión a internet.';
+      setUploadError(msg);
       setPhoto(null);
     } finally {
       setIsUploadingPhoto(false);
@@ -109,26 +148,27 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
   };
 
   const handleSubmit = async () => {
-    const finalSeverity: Severity = tipo === 'corte_calle' ? 'critico' : (severity || 'critico');
-    if (!photo || !title.trim() || !description.trim()) return;
-    if (tipo !== 'corte_calle' && !severity) return;
+    if (!photo || !title.trim() || !description.trim() || !severity) return;
 
     try {
       setIsSubmitting(true);
       setSubmitError(null);
       const today = new Date().toISOString().split('T')[0];
-      const trimmedReporter = reporterName.trim();
-      const finalReporter = trimmedReporter || 'Vecino/a de Chillán';
+      const finalReporter = isCustomReporter && reporterName.trim()
+        ? reporterName.trim()
+        : 'Vecino/a de Ñuble';
 
-      if (typeof window !== 'undefined' && trimmedReporter) {
-        localStorage.setItem('nombreReportero', trimmedReporter);
+      if (typeof window !== 'undefined') {
+        if (isCustomReporter && reporterName.trim()) {
+          localStorage.setItem('nombreReportero', reporterName.trim());
+        }
       }
 
       const newEvent: Omit<ReportEvent, 'id' | 'yaConfirme' | 'yaVoteEstado'> = {
         lat: location.lat,
         lng: location.lng,
         tipo,
-        severity: finalSeverity,
+        severity,
         estado: 'activo',
         ultimaConfirmacion: today,
         estadoVotos: { activo: 0, intervencion_parcial: 0, resuelto: 0 },
@@ -141,18 +181,19 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
         uid: currentUid || undefined,
       };
       await onSubmit(newEvent);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error submitting report to Firestore:', err);
+      const errorObj = err as { code?: string; message?: string } | undefined;
       const isPermissionOrCooldown =
-        err?.code === 'permission-denied' ||
-        err?.message?.toLowerCase().includes('permission') ||
-        err?.message?.toLowerCase().includes('permiso') ||
-        err?.message?.toLowerCase().includes('insufficient');
+        errorObj?.code === 'permission-denied' ||
+        errorObj?.message?.toLowerCase().includes('permission') ||
+        errorObj?.message?.toLowerCase().includes('permiso') ||
+        errorObj?.message?.toLowerCase().includes('insufficient');
 
       if (isPermissionOrCooldown) {
         setSubmitError('Ya reportaste recientemente. Espera unos minutos antes de crear otro reporte.');
       } else {
-        setSubmitError(err?.message || 'Hubo un problema al enviar el reporte. Inténtalo nuevamente.');
+        setSubmitError(errorObj?.message || 'Hubo un problema al enviar el reporte. Inténtalo nuevamente.');
       }
     } finally {
       setIsSubmitting(false);
@@ -163,8 +204,10 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
     step === 1
       ? !!photo && !isUploadingPhoto && !uploadError
       : step === 2
-        ? (tipo === 'corte_calle' || !!severity)
-        : !!title.trim() && !!description.trim() && locationConfirmed;
+        ? !!severity
+        : step === 3
+          ? locationConfirmed
+          : !!title.trim() && !!description.trim();
 
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
@@ -177,6 +220,11 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
     setLocationMessage(null);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
+        if (!isWithinNubleBounds(coords.latitude, coords.longitude)) {
+          setLocationMessage(OUT_OF_BOUNDS_MESSAGE);
+          setIsLocating(false);
+          return;
+        }
         setLocation({ lat: coords.latitude, lng: coords.longitude });
         setLocationConfirmed(true);
         setLocationMessage('Ubicación actualizada con tu GPS.');
@@ -199,7 +247,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
   return (
     <div className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/50 backdrop-blur-xs animate-fade-in p-0 sm:p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-slide-up overflow-hidden max-h-[90dvh] flex flex-col"
+        className="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-slide-up overflow-hidden max-h-[92dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -216,7 +264,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
             )}
             <div>
               <h2 className="text-base font-bold text-gray-900">Reportar problema</h2>
-              <p className="text-xs text-gray-500">Paso {step} de 3</p>
+              <p className="text-xs text-gray-500">Paso {step} de 4</p>
             </div>
           </div>
           <button
@@ -230,7 +278,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
 
         {/* Progress bar */}
         <div className="flex gap-1.5 px-5 pt-2.5 shrink-0">
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div
               key={s}
               className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${s <= step ? 'bg-blue-600' : 'bg-gray-200'}`}
@@ -339,12 +387,12 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
             <div className="p-5 space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-gray-800">Tipo de problema</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Indica qué tipo de situación estás reportando.</p>
+                <p className="text-xs text-gray-500 mt-0.5">Selecciona la opción que mejor describe la situación.</p>
               </div>
 
-              {/* Type selector */}
-              <div className="grid grid-cols-3 gap-2">
-                {typeOptions.map(({ key, label, icon: Icon }) => {
+              {/* Type selector list with descriptions */}
+              <div className="space-y-2">
+                {typeOptions.map(({ key, label, emoji, description }) => {
                   const isSelected = tipo === key;
                   return (
                     <button
@@ -359,186 +407,238 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
                           }
                         }
                         setTipo(key);
-                        if (key === 'corte_calle') {
-                          setSeverity('critico');
-                        }
                       }}
-                      className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 p-3 transition-all duration-200 ${
+                      className={`w-full text-left flex items-start gap-3 rounded-2xl border-2 p-3 transition-all duration-200 ${
                         isSelected
-                          ? key === 'corte_calle'
-                            ? 'border-red-500 bg-red-50/70 text-red-700 shadow-sm scale-[1.02]'
-                            : 'border-blue-600 bg-blue-50/70 text-blue-700 shadow-sm scale-[1.02]'
-                          : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                          ? 'border-blue-600 bg-blue-50/70 text-gray-900 shadow-sm ring-1 ring-blue-600/30'
+                          : 'border-gray-200 hover:border-gray-300 bg-white text-gray-700'
                       }`}
                     >
-                      <Icon size={22} className={isSelected && key === 'corte_calle' ? 'text-red-600' : ''} />
-                      <span className="text-xs font-bold leading-tight text-center">{label}</span>
+                      <span className="text-xl shrink-0 mt-0.5 select-none" role="img" aria-label={label}>
+                        {emoji}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-900">{label}</span>
+                          {isSelected && (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs">
+                              <Check size={10} strokeWidth={3} />
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-500 leading-snug mt-0.5">{description}</p>
+                      </div>
                     </button>
                   );
                 })}
               </div>
 
-              {/* Severity selector (or notice if corte_calle) */}
-              {tipo === 'corte_calle' ? (
-                <div className="rounded-2xl border-2 border-red-200 bg-red-50/80 p-4 animate-fade-in">
-                  <div className="flex items-center gap-2.5">
-                    <div className="rounded-xl bg-red-600 p-2 text-white shadow-sm">
-                      <Ban size={20} />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-red-900">
-                        Corte total / Prioridad Crítica
-                      </h4>
-                      <p className="text-xs text-red-700 mt-0.5">
-                        Los cortes de calle se catalogan automáticamente como críticos en el mapa para alertar a los conductores.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2 pt-2">
-                  <h3 className="text-sm font-semibold text-gray-800">¿Qué tan peligroso es?</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {severityOptions.map(({ key, icon: Icon }) => {
-                      const isSelected = severity === key;
-                      const cfg = severityConfig[key];
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => {
-                            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-                              try {
-                                navigator.vibrate(10);
-                              } catch {
-                                // Ignore
-                              }
+              {/* Severity selector for ALL categories */}
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-800">¿Qué tan peligroso es?</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {severityOptions.map(({ key, icon: Icon }) => {
+                    const isSelected = severity === key;
+                    const cfg = severityConfig[key];
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                            try {
+                              navigator.vibrate(10);
+                            } catch {
+                              // Ignore
                             }
-                            setSeverity(key);
-                          }}
-                          style={{
-                            borderColor: isSelected ? cfg.color : undefined,
-                            backgroundColor: isSelected ? hexToRgba(cfg.color, 0.12) : undefined,
-                          }}
-                          className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 p-3.5 transition-all duration-200 ${
-                            isSelected
-                              ? 'shadow-md scale-[1.02]'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
+                          }
+                          setSeverity(key);
+                        }}
+                        style={{
+                          borderColor: isSelected ? cfg.color : undefined,
+                          backgroundColor: isSelected ? hexToRgba(cfg.color, 0.12) : undefined,
+                        }}
+                        className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 p-3 transition-all duration-200 ${
+                          isSelected
+                            ? 'shadow-md scale-[1.02]'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div
+                          className="flex h-7 w-7 items-center justify-center rounded-full text-white shadow-sm"
+                          style={{ backgroundColor: cfg.color }}
                         >
-                          <div
-                            className="flex h-7 w-7 items-center justify-center rounded-full text-white shadow-sm"
-                            style={{ backgroundColor: cfg.color }}
-                          >
-                            <Icon size={16} />
-                          </div>
-                          <span className={`text-xs font-bold capitalize ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
-                            {cfg.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                          <Icon size={16} />
+                        </div>
+                        <span className={`text-xs font-bold capitalize ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                          {cfg.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
-          {/* Step 3: Location & Details */}
+          {/* Step 3: SOLO Ubicación (Pin fijo central + Mapa que se mueve + Nominatim) */}
           {step === 3 && (
+            <div className="p-5 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800">Ubicación exacta</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Busca la calle o mueve el mapa para centrar el pin en el daño vial.
+                </p>
+              </div>
+
+              {/* Enhanced Fixed Pin Location Picker */}
+              <FixedPinLocationPicker
+                location={location}
+                onChangeLocation={(loc) => {
+                  setLocation(loc);
+                  setLocationConfirmed(true);
+                }}
+                onInteract={() => setLocationConfirmed(true)}
+                locationConfirmed={locationConfirmed}
+                onGpsClick={handleGetLocation}
+                isLocating={isLocating}
+                gpsMessage={locationMessage}
+                onAddressResolved={setDetectedAddress}
+              />
+            </div>
+          )}
+
+          {/* Step 4: SOLO Detalles (Título, Descripción, Reportero) */}
+          {step === 4 && (
             <div className="p-5 space-y-4">
               <div>
-                <h3 className="text-sm font-semibold text-gray-800">Ubicación y detalles</h3>
-                <p className="text-xs text-gray-500 mt-0.5">Mueve el pin o toca en el mapa para ajustar el punto exacto.</p>
+                <h3 className="text-sm font-semibold text-gray-800">Detalles del reporte</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Describe el problema para informar a la comunidad.</p>
               </div>
 
-              {/* Interactive Mini Map Picker */}
-              <div className="space-y-2">
-                <LocationPickerMap
-                  location={location}
-                  onChangeLocation={(loc) => {
-                    setLocation(loc);
-                    setLocationConfirmed(true);
-                  }}
-                  onInteract={() => setLocationConfirmed(true)}
-                  heightClassName="h-44"
-                  hintText="Mueve el pin o toca la calle del daño"
-                />
-
-                {/* Status prompt for location confirmation */}
-                {!locationConfirmed ? (
-                  <div className="rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2 flex items-center gap-2 text-xs font-medium text-amber-900 animate-pulse">
-                    <AlertCircle size={15} className="text-amber-600 shrink-0" />
-                    <span>Toca el mapa o usa tu GPS para marcar la ubicación exacta.</span>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 flex items-center gap-2 text-xs font-semibold text-emerald-800">
-                    <Check size={15} className="text-emerald-600 shrink-0" />
-                    <span>Ubicación seleccionada correctamente</span>
-                  </div>
+              {/* Summary card header */}
+              <div className="flex items-center gap-3 rounded-2xl bg-gray-50 border border-gray-100 p-3">
+                {photo && (
+                  <img src={photo} alt="Miniatura" className="h-12 w-12 rounded-xl object-cover border border-gray-200" />
                 )}
-
-                <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-3.5 py-2">
-                  <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                    <MapPin size={14} className="text-blue-600 shrink-0" />
-                    <span className="font-mono text-[11px]">{location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleGetLocation}
-                    disabled={isLocating}
-                    className="flex items-center gap-1 rounded-lg bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition disabled:opacity-50 active:scale-95"
-                  >
-                    <Locate size={13} className={isLocating ? 'animate-spin' : ''} />
-                    <span>{isLocating ? 'Obteniendo...' : 'Mi GPS actual'}</span>
-                  </button>
+                <div className="flex-1 min-w-0 text-xs">
+                  <span className="font-bold text-gray-900 capitalize block truncate">
+                    {tipo === 'bache'
+                      ? 'Bache'
+                      : tipo === 'corte_calle'
+                        ? 'Obstrucción'
+                        : tipo === 'peligro_via'
+                          ? 'Peligro en la vía'
+                          : 'Otro problema'}
+                  </span>
+                  <span className="text-[11px] text-gray-600 font-medium block truncate">
+                    {detectedAddress ? `📍 ${detectedAddress}` : `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                  </span>
                 </div>
-                {locationMessage && (
-                  <p className="text-[11px] text-blue-600 px-1">{locationMessage}</p>
-                )}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${
+                  severity === 'critico'
+                    ? 'bg-red-100 text-red-700'
+                    : severity === 'moderado'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-green-100 text-green-700'
+                }`}>
+                  {severity ? severityConfig[severity]?.label || severity : 'Crítico'}
+                </span>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-700">Título / Referencia</label>
+                <label className="text-xs font-semibold text-gray-700">Título / Referencia *</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={
-                    tipo === 'corte_calle'
-                      ? 'ej. Corte total en 5 de Abril'
-                      : 'ej. Bache profundo en Av. O\'Higgins'
+                    tipo === 'bache'
+                      ? 'ej. Bache profundo en Av. O\'Higgins'
+                      : tipo === 'corte_calle'
+                        ? 'ej. Contenedores o escombros bloqueando la ciclovía'
+                        : tipo === 'peligro_via'
+                          ? 'ej. Tapa de alcantarilla abierta en calzada'
+                          : 'ej. Problema en calzada'
                   }
                   className="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  autoFocus
                 />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-gray-700">Descripción</label>
+                <label className="text-xs font-semibold text-gray-700">Descripción detallada *</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={
-                    tipo === 'corte_calle'
-                      ? 'ej. Calle cerrada por trabajos de repavimentación entre Maipú y 18 de Septiembre.'
-                      : 'ej. Bache de gran tamaño en pista derecha cerca del cruce.'
+                    tipo === 'bache'
+                      ? 'ej. Bache de gran tamaño en pista derecha cerca del cruce.'
+                      : tipo === 'corte_calle'
+                        ? 'ej. Estructura pesada o escombros acumulados ocupando el paso.'
+                        : tipo === 'peligro_via'
+                          ? 'ej. Peligro inminente por alcantarilla sin tapa o cables a baja altura.'
+                          : 'ej. Describe la situación con el mayor detalle posible.'
                   }
-                  rows={2}
+                  rows={3}
                   className="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-gray-700">
-                  ¿Cómo quieres que aparezca tu nombre? (opcional)
+              {/* Reporter name selectable chips */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-700 block">
+                  ¿Cómo quieres que aparezca tu nombre?
                 </label>
-                <input
-                  type="text"
-                  value={reporterName}
-                  onChange={(e) => setReporterName(e.target.value)}
-                  placeholder="Vecino/a de Chillán"
-                  className="mt-1 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
+
+                {!isCustomReporter ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Chip 1: Preseleccionado por defecto */}
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 border-2 border-blue-600 text-blue-700 text-xs font-bold shadow-xs cursor-default"
+                    >
+                      <Check size={14} className="text-blue-600" />
+                      <span>Vecino/a de Ñuble</span>
+                    </button>
+
+                    {/* Chip 2: Escribir mi nombre */}
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomReporter(true)}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-50 border border-gray-300 hover:border-gray-400 hover:bg-gray-100 text-gray-700 text-xs font-medium transition active:scale-95"
+                    >
+                      <span>+ Escribir mi nombre</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 animate-scale-in">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-gray-500 font-medium">Ingresa tu nombre o apodo:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomReporter(false);
+                          setReporterName('');
+                          if (typeof window !== 'undefined') {
+                            localStorage.removeItem('nombreReportero');
+                          }
+                        }}
+                        className="text-[11px] text-blue-600 font-semibold hover:underline"
+                      >
+                        ← Usar "Vecino/a de Ñuble"
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={reporterName}
+                      onChange={(e) => setReporterName(e.target.value)}
+                      placeholder="ej. Carlos Soto"
+                      autoFocus
+                      className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Rate limit / Cooldown / Error alert */}
@@ -557,12 +657,27 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
 
         {/* Footer button */}
         <div className="border-t border-gray-100 p-4 shrink-0 bg-white">
-          {step < 3 ? (
+          {step === 3 ? (
             <button
               type="button"
               onClick={() => canProceed && setStep(step + 1)}
               disabled={!canProceed}
-              className={`w-full rounded-2xl py-3.5 font-semibold transition ${
+              className={`w-full rounded-2xl py-3.5 font-bold transition shadow-sm flex items-center justify-center gap-1.5 ${
+                canProceed
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]'
+                  : 'cursor-not-allowed bg-gray-100 text-gray-400'
+              }`}
+            >
+              <span className="truncate max-w-[320px]">
+                {detectedAddress ? `Confirmar: ${detectedAddress} →` : 'Confirmar esta ubicación →'}
+              </span>
+            </button>
+          ) : step < 4 ? (
+            <button
+              type="button"
+              onClick={() => canProceed && setStep(step + 1)}
+              disabled={!canProceed}
+              className={`w-full rounded-2xl py-3.5 font-bold transition shadow-sm ${
                 canProceed
                   ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]'
                   : 'cursor-not-allowed bg-gray-100 text-gray-400'
@@ -575,7 +690,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
               type="button"
               onClick={handleSubmit}
               disabled={!canProceed || isSubmitting}
-              className="w-full rounded-2xl bg-green-600 py-3.5 font-semibold text-white transition hover:bg-green-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+              className="w-full rounded-2xl bg-green-600 py-3.5 font-bold text-white shadow-sm transition hover:bg-green-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
             >
               {isSubmitting ? 'Guardando reporte...' : 'Enviar reporte'}
             </button>

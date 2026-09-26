@@ -8,6 +8,8 @@ import {
   arrayUnion,
   writeBatch,
   serverTimestamp,
+  type UpdateData,
+  type DocumentData,
 } from 'firebase/firestore';
 import { db } from '@/firebase';
 import type { ReportEvent, EventStatus } from '@/data/mockEvents';
@@ -60,6 +62,7 @@ export function subscribeToEvents(
           uid: data.uid,
           confirmedUids: data.confirmedUids || [],
           votedUids: data.votedUids || [],
+          createdAt: data.createdAt,
         };
       });
 
@@ -119,7 +122,7 @@ export async function confirmEvent(
   const eventRef = doc(db, EVENTS_COLLECTION, eventId);
   const today = new Date().toISOString().split('T')[0];
 
-  const updateData: Record<string, any> = {
+  const updateData: UpdateData<DocumentData> = {
     confirmations: increment(1),
     ultimaConfirmacion: today,
   };
@@ -153,7 +156,7 @@ export async function voteEventStatus(
   const today = new Date().toISOString().split('T')[0];
   const newVoteCount = (currentVotes[category] || 0) + 1;
 
-  const updateData: Record<string, any> = {
+  const updateData: UpdateData<DocumentData> = {
     [`estadoVotos.${category}`]: increment(1),
     confirmations: increment(1),
     ultimaConfirmacion: today,
