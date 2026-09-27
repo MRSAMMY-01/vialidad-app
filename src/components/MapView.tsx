@@ -5,7 +5,7 @@ import 'leaflet.markercluster';
 import { Locate, Loader2 } from 'lucide-react';
 import type { ReportEvent, Severity } from '@/data/mockEvents';
 import { mockGpsLocation, severityConfig } from '@/data/mockEvents';
-import { createSeverityIcon, createGpsIcon } from '@/utils/mapIcons';
+import { createSeverityIcon, createBubbleIcon, createGpsIcon } from '@/utils/mapIcons';
 import {
   NUBLE_MAP_BOUNDS,
   isWithinNubleBounds,
@@ -83,10 +83,41 @@ function MarkerClusterGroup({
   onSelect: (event: ReportEvent) => void;
 }) {
   const map = useMap();
+  const [zoom, setZoom] = useState(() => (map ? map.getZoom() : 14));
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const knownEventIdsRef = useRef<Set<string>>(new Set());
+  const isInitialRunRef = useRef(true);
+
+  useMapEvents({
+    zoomend: () => {
+      setZoom(map.getZoom());
+    },
+  });
+
+  useEffect(() => {
+    if (map) {
+      setZoom(map.getZoom());
+    }
+  }, [map]);
 
   useEffect(() => {
     if (!map) return;
+
+    // Detect new events for pop-in animation
+    const newEventIdsThisRun = new Set<string>();
+    if (isInitialRunRef.current) {
+      events.forEach((e) => knownEventIdsRef.current.add(e.id));
+      isInitialRunRef.current = false;
+    } else {
+      events.forEach((e) => {
+        if (!knownEventIdsRef.current.has(e.id)) {
+          newEventIdsThisRun.add(e.id);
+          knownEventIdsRef.current.add(e.id);
+        }
+      });
+    }
+
+    const isZoomedIn = zoom >= 15.5;
 
     const clusterGroup = L.markerClusterGroup({
       chunkedLoading: true,
@@ -150,8 +181,15 @@ function MarkerClusterGroup({
           ? '#d97706'
           : severityConfig[event.severity as Severity]?.color || '#f59e0b';
 
+      const isNew = newEventIdsThisRun.has(event.id);
+      const isCriticalActive = event.severity === 'critico' && event.estado === 'activo';
+
+      const icon = isZoomedIn
+        ? createBubbleIcon(pinColor, event.tipo, { isNew, isCriticalActive })
+        : createSeverityIcon(pinColor, event.tipo, { isNew, isCriticalActive });
+
       const marker = L.marker([lat, lng], {
-        icon: createSeverityIcon(pinColor, event.tipo),
+        icon,
         opacity: isResolved ? 0.75 : 1,
       });
       (marker as unknown as { severity: Severity; estado: string; eventId: string }).severity = event.severity;
@@ -169,7 +207,7 @@ function MarkerClusterGroup({
         map.removeLayer(clusterGroupRef.current);
       }
     };
-  }, [events, map, onSelect]);
+  }, [events, map, onSelect, zoom]);
 
   return null;
 }
