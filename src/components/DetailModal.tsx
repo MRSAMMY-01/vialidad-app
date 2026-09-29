@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   CheckCircle2,
   MapPin,
@@ -11,6 +11,7 @@ import {
   AlertCircle,
   AlertTriangle,
   Construction,
+  Maximize2,
 } from 'lucide-react';
 import type { ReportEvent, EventStatus } from '@/data/mockEvents';
 import { severityConfig } from '@/data/mockEvents';
@@ -56,6 +57,18 @@ export default function DetailModal({
   const [interventionText, setInterventionText] = useState('');
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [dragOffsetY, setDragOffsetY] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  // Close lightbox on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isLightboxOpen) {
+        setIsLightboxOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLightboxOpen]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartY(e.touches[0].clientY);
@@ -95,98 +108,115 @@ export default function DetailModal({
     (resolvedVotes > 0 && resolvedVotes < 3);
 
   return (
-    <div
-      className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4 backdrop-blur-[2px] animate-fade-in"
-      onClick={onClose}
-    >
+    <>
       <div
-        className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90dvh] sm:max-h-[85vh] flex flex-col animate-slide-up sm:animate-scale-in transition-transform duration-75"
-        style={{
-          transform: dragOffsetY > 0 ? `translateY(${dragOffsetY}px)` : undefined,
-        }}
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4 backdrop-blur-[2px] animate-fade-in"
+        onClick={onClose}
       >
-        {/* Drag handle for mobile gesture */}
         <div
-          className="sm:hidden flex items-center justify-center pt-2.5 pb-1.5 bg-white cursor-grab active:cursor-grabbing touch-none select-none"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90dvh] sm:max-h-[85vh] flex flex-col animate-slide-up sm:animate-scale-in transition-transform duration-75"
+          style={{
+            transform: dragOffsetY > 0 ? `translateY(${dragOffsetY}px)` : undefined,
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div className="w-12 h-1.5 rounded-full bg-gray-300" />
-        </div>
+          {/* Drag handle for mobile gesture */}
+          <div
+            className="sm:hidden flex items-center justify-center pt-2.5 pb-1.5 bg-white cursor-grab active:cursor-grabbing touch-none select-none"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="w-12 h-1.5 rounded-full bg-gray-300" />
+          </div>
 
-        {/* Scrollable Container */}
-        <div className="overflow-y-auto flex-1 overscroll-contain">
-          {/* Photo & top badges */}
-          <div className="relative h-48 sm:h-56">
-            <img
-              src={getDetailModalImageUrl(event.photo)}
-              alt={event.title}
-              className={`h-full w-full object-cover transition duration-300 ${
-                isResolved ? 'grayscale-[40%]' : ''
-              }`}
-            />
-            <button
-              onClick={onClose}
-              aria-label="Cerrar modal"
-              className="absolute top-3 right-3 rounded-full bg-black/40 p-2 text-white backdrop-blur-sm transition hover:bg-black/60"
+          {/* Scrollable Container */}
+          <div className="overflow-y-auto flex-1 overscroll-contain">
+            {/* Photo Container - Clean & Clickable for Lightbox */}
+            <div
+              onClick={() => setIsLightboxOpen(true)}
+              className="relative h-48 sm:h-56 cursor-pointer group bg-gray-900 overflow-hidden"
+              title="Toca para ver en pantalla completa"
             >
-              <X size={20} />
-            </button>
+              <img
+                src={getDetailModalImageUrl(event.photo)}
+                alt={event.title}
+                className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 ${
+                  isResolved ? 'grayscale-[40%]' : ''
+                }`}
+              />
 
-            <div className="absolute bottom-3 left-3 flex flex-wrap items-center gap-2">
-              {isResolved ? (
-                <div className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-                  <CheckCircle2 size={15} />
-                  Reparado • {formatCLDate(event.ultimaConfirmacion || event.date)}
-                </div>
-              ) : isPartial ? (
-                <div className="flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-                  <Construction size={15} />
-                  Intervención parcial
-                </div>
-              ) : (
-                <div className={`flex items-center gap-2 rounded-full ${cfg.bg} px-3 py-1.5 text-sm font-semibold text-white shadow-lg`}>
-                  <span className="h-2 w-2 rounded-full bg-white" />
-                  {cfg.label}
-                </div>
-              )}
+              {/* Close Modal Button (top-right) */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                aria-label="Cerrar modal"
+                className="absolute top-3 right-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/70 active:scale-95 z-10"
+              >
+                <X size={20} />
+              </button>
 
-              {event.tipo && (
-                <div className="flex items-center gap-1.5 rounded-full bg-black/70 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-white shadow-lg">
-                  {event.tipo === 'corte_calle' && <Ban size={14} className="text-amber-400" />}
-                  {event.tipo === 'peligro_via' && <AlertTriangle size={14} className="text-amber-400" />}
-                  <span>
-                    {event.tipo === 'corte_calle'
-                      ? 'Obstrucción'
-                      : event.tipo === 'peligro_via'
-                        ? 'Peligro en la vía'
-                        : event.tipo === 'bache'
-                          ? 'Bache'
-                          : 'Otro problema'}
-                  </span>
-                </div>
-              )}
+              {/* Subtle tap-to-expand hint pill (bottom-right) */}
+              <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-md px-3 py-1.5 text-xs font-semibold text-white/95 shadow-md pointer-events-none transition group-hover:bg-black/80">
+                <Maximize2 size={13} />
+                <span>Ampliar</span>
+              </div>
             </div>
-          </div>
 
-        <div className="p-5 space-y-4">
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-lg font-bold text-gray-900">{event.title}</h2>
-              {isResolved ? (
-                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                  Resuelto
-                </span>
-              ) : isPartial ? (
-                <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
-                  Intervención parcial
-                </span>
-              ) : null}
-            </div>
-            <p className="mt-1 text-sm text-gray-600">{event.description}</p>
-          </div>
+            <div className="p-5 space-y-4">
+              {/* Chips moved to clean white area above title */}
+              <div className="flex flex-wrap items-center gap-2">
+                {isResolved ? (
+                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm">
+                    <CheckCircle2 size={14} />
+                    Reparado • {formatCLDate(event.ultimaConfirmacion || event.date)}
+                  </div>
+                ) : isPartial ? (
+                  <div className="flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm">
+                    <Construction size={14} />
+                    Intervención parcial
+                  </div>
+                ) : (
+                  <div className={`flex items-center gap-1.5 rounded-full ${cfg.bg} px-3 py-1.5 text-xs font-bold text-white shadow-sm`}>
+                    <span className="h-2 w-2 rounded-full bg-white" />
+                    {cfg.label}
+                  </div>
+                )}
+
+                {event.tipo && (
+                  <div className="flex items-center gap-1.5 rounded-full bg-gray-800 px-3 py-1.5 text-xs font-bold text-white shadow-sm">
+                    {event.tipo === 'corte_calle' && <Ban size={13} className="text-amber-400" />}
+                    {event.tipo === 'peligro_via' && <AlertTriangle size={13} className="text-amber-400" />}
+                    <span>
+                      {event.tipo === 'corte_calle'
+                        ? 'Obstrucción'
+                        : event.tipo === 'peligro_via'
+                          ? 'Peligro en la vía'
+                          : event.tipo === 'bache'
+                            ? 'Bache'
+                            : 'Otro problema'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">{event.title}</h2>
+                  {isResolved ? (
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                      Resuelto
+                    </span>
+                  ) : isPartial ? (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                      Intervención parcial
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm text-gray-600">{event.description}</p>
+              </div>
 
           <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
             <span className="flex items-center gap-1.5">
@@ -407,6 +437,52 @@ export default function DetailModal({
         </div>
       </div>
     </div>
+
+    {/* Lightbox / Visor de imagen en pantalla completa */}
+    {isLightboxOpen && (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Visor de imagen a pantalla completa"
+        className="fixed inset-0 z-[3000] flex flex-col items-center justify-center bg-black/95 p-3 sm:p-6 animate-fade-in backdrop-blur-sm cursor-zoom-out select-none"
+        onClick={() => setIsLightboxOpen(false)}
+      >
+        {/* Botón de cierre táctil optimizado (44x44px) */}
+        <button
+          type="button"
+          className="lightbox-close absolute top-4 right-4 z-20 flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition hover:bg-white/30 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white/60 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsLightboxOpen(false);
+          }}
+          aria-label="Cerrar visor de imagen"
+        >
+          <X size={24} className="stroke-[2.5]" />
+        </button>
+
+        {/* Contenedor de la foto sin recortes (object-contain) */}
+        <div
+          className="relative flex items-center justify-center max-h-[85vh] max-w-full cursor-default"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <img
+            src={event.photo}
+            alt={event.title}
+            className="max-h-[85vh] max-w-[95vw] sm:max-w-[90vw] object-contain rounded-lg shadow-2xl animate-scale-in"
+          />
+        </div>
+
+        {/* Pie informativo sutil */}
+        <div
+          className="mt-3 text-center text-xs text-white/70 max-w-md px-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="font-semibold text-white/90 truncate">{event.title}</p>
+          <p className="text-[11px] text-white/50 mt-0.5">Toca el fondo negro o la ✕ para cerrar</p>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

@@ -240,7 +240,7 @@ export default function ReportFlow({ onClose, onSubmit, currentUid }: ReportFlow
         setLocationMessage(message);
         setIsLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 }
     );
   };
 

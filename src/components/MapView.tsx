@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet.markercluster';
@@ -363,6 +363,15 @@ export default function MapView({
 
   const activeUserLocation = propUserLocation ?? internalUserLocation;
 
+  // Ordenar reportes para la lista: más recientes primero (arriba hacia abajo)
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((a, b) => {
+      const timeB = parseEventDate(b.createdAt) ?? parseEventDate(b.date) ?? 0;
+      const timeA = parseEventDate(a.createdAt) ?? parseEventDate(a.date) ?? 0;
+      return timeB - timeA;
+    });
+  }, [events]);
+
   // Close filter menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent | TouchEvent) => {
@@ -427,7 +436,7 @@ export default function MapView({
           setInternalUserLocation(null);
           setIsLocating(false);
         },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
   }, [propUserLocation]);
@@ -459,7 +468,7 @@ export default function MapView({
           setTargetLocation({ ...fallback, zoom: 15, timestamp: Date.now() });
           setIsLocating(false);
         },
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
       const fallback = activeUserLocation ?? mockGpsLocation;
@@ -686,12 +695,12 @@ export default function MapView({
 
             {/* Report Cards List */}
             <div className="mt-3.5 overflow-y-auto space-y-2.5 flex-1 overscroll-contain pr-0.5 pb-2">
-              {events.length === 0 ? (
+              {sortedEvents.length === 0 ? (
                 <div className="py-12 text-center text-xs text-gray-500">
                   No hay reportes disponibles en este momento.
                 </div>
               ) : (
-                events.map((ev) => {
+                sortedEvents.map((ev) => {
                   const isCritico = ev.severity === 'critico';
                   const isModerado = ev.severity === 'moderado';
 

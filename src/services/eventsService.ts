@@ -18,6 +18,28 @@ const EVENTS_COLLECTION = 'eventos';
 export const VOTE_THRESHOLD = 3;
 
 /**
+ * Parses an event date and optional createdAt ISO string into a numeric timestamp.
+ */
+export function getEventTimestamp(createdAt?: string, dateStr?: string): number {
+  if (createdAt) {
+    const t = new Date(createdAt).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (dateStr) {
+    const ymdMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (ymdMatch) {
+      const year = parseInt(ymdMatch[1], 10);
+      const month = parseInt(ymdMatch[2], 10) - 1;
+      const day = parseInt(ymdMatch[3], 10);
+      return new Date(year, month, day, 12, 0, 0).getTime();
+    }
+    const t = new Date(dateStr).getTime();
+    if (!isNaN(t)) return t;
+  }
+  return 0;
+}
+
+/**
  * Subscribes to real-time updates from Firestore 'eventos' collection.
  */
 export function subscribeToEvents(
@@ -64,6 +86,13 @@ export function subscribeToEvents(
           votedUids: data.votedUids || [],
           createdAt: data.createdAt,
         };
+      });
+
+      // Ordenar por fecha y hora más reciente primero (descendente)
+      items.sort((a, b) => {
+        const timeB = getEventTimestamp(b.createdAt, b.date);
+        const timeA = getEventTimestamp(a.createdAt, a.date);
+        return timeB - timeA;
       });
 
       onUpdate(items);

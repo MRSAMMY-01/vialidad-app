@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
-import { Search, Loader2, X, MapPin, Locate, Check, AlertCircle } from 'lucide-react';
+import {
+  Search,
+  Loader2,
+  X,
+  MapPin,
+  Locate,
+  Check,
+  AlertCircle,
+  Maximize2,
+  Minimize2,
+} from 'lucide-react';
 import {
   NUBLE_MAP_BOUNDS,
   NUBLE_NOMINATIM_VIEWBOX,
@@ -38,6 +48,23 @@ interface FixedPinLocationPickerProps {
   isLocating: boolean;
   gpsMessage?: string | null;
   onAddressResolved?: (address: string | null) => void;
+}
+
+/**
+ * Controller inside Leaflet context that tracks container resizing
+ * with 200ms delay to eliminate grey tiles during fullscreen transitions.
+ */
+function MapResizeTracker({ isFullscreen }: { isFullscreen: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [isFullscreen, map]);
+
+  return null;
 }
 
 /**
@@ -135,6 +162,18 @@ export default function FixedPinLocationPicker({
   const [addressName, setAddressName] = useState<string | null>(null);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [boundaryNotice, setBoundaryNotice] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Close fullscreen on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   const [programmaticTarget, setProgrammaticTarget] = useState<{
     lat: number;
@@ -152,7 +191,7 @@ export default function FixedPinLocationPicker({
     setIsLoadingAddress(true);
     reverseDebounceRef.current = setTimeout(async () => {
       try {
-        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`;
         const res = await fetch(url, {
           headers: {
             'Accept-Language': 'es-CL,es;q=0.9',
@@ -324,8 +363,14 @@ export default function FixedPinLocationPicker({
         )}
       </div>
 
-      {/* 2. Large Map Container with Fixed Center Pin */}
-      <div className="relative h-64 sm:h-72 w-full overflow-hidden rounded-3xl border border-gray-200 shadow-inner z-10 bg-slate-100">
+      {/* 2. Large Map Container with Fixed Center Pin (with Fullscreen Mode Support) */}
+      <div
+        className={
+          isFullscreen
+            ? 'fixed inset-0 z-[2500] h-[100dvh] w-screen overflow-hidden rounded-none border-none shadow-none bg-slate-100 animate-fade-in'
+            : 'relative h-64 sm:h-72 w-full overflow-hidden rounded-3xl border border-gray-200 shadow-inner z-10 bg-slate-100'
+        }
+      >
         <MapContainer
           center={[location.lat, location.lng]}
           zoom={16}
@@ -342,6 +387,7 @@ export default function FixedPinLocationPicker({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          <MapResizeTracker isFullscreen={isFullscreen} />
           <FixedPinMapEvents
             onCenterChange={handleMapCenterChange}
             targetCoords={programmaticTarget}
@@ -370,6 +416,30 @@ export default function FixedPinLocationPicker({
           </div>
         </div>
 
+        {/* Toggle Fullscreen Button (Top-Right) */}
+        <button
+          type="button"
+          onClick={() => setIsFullscreen((prev) => !prev)}
+          title={isFullscreen ? 'Minimizar mapa' : 'Expandir mapa a pantalla completa'}
+          className={`absolute z-[400] flex items-center gap-1.5 rounded-full font-bold shadow-xl backdrop-blur-md transition active:scale-95 cursor-pointer ${
+            isFullscreen
+              ? 'top-4 right-4 bg-gray-900/90 text-white hover:bg-black px-3.5 py-2 text-xs border border-white/20'
+              : 'top-3 right-3 bg-white/95 text-gray-800 hover:bg-white px-3 py-1.5 text-xs border border-gray-100'
+          }`}
+        >
+          {isFullscreen ? (
+            <>
+              <Minimize2 size={14} />
+              <span>Cerrar mapa</span>
+            </>
+          ) : (
+            <>
+              <Maximize2 size={13} className="text-blue-600" />
+              <span>Expandir</span>
+            </>
+          )}
+        </button>
+
         {/* Floating Hint Overlay on top of Map */}
         <div className="pointer-events-none absolute top-3 left-3 z-[400] bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] font-medium text-white shadow-md">
           Mueve el mapa para posicionar el pin
@@ -391,7 +461,9 @@ export default function FixedPinLocationPicker({
           onClick={onGpsClick}
           disabled={isLocating}
           title="Usar mi ubicación actual"
-          className="absolute bottom-3 right-3 z-[400] flex items-center gap-1.5 rounded-2xl bg-white px-3.5 py-2 text-xs font-bold text-gray-800 shadow-xl border border-gray-100 backdrop-blur-sm transition hover:bg-gray-50 active:scale-95 disabled:opacity-75"
+          className={`absolute z-[400] flex items-center gap-1.5 rounded-2xl bg-white px-3.5 py-2 text-xs font-bold text-gray-800 shadow-xl border border-gray-100 backdrop-blur-sm transition hover:bg-gray-50 active:scale-95 disabled:opacity-75 cursor-pointer ${
+            isFullscreen ? 'bottom-24 right-4' : 'bottom-3 right-3'
+          }`}
         >
           {isLocating ? (
             <Loader2 size={15} className="animate-spin text-blue-600" />
@@ -400,6 +472,28 @@ export default function FixedPinLocationPicker({
           )}
           <span>{isLocating ? 'Obteniendo GPS...' : 'Mi GPS actual'}</span>
         </button>
+
+        {/* Bottom Fullscreen Confirmation Bar */}
+        {isFullscreen && (
+          <div className="absolute bottom-6 left-4 right-4 z-[400] flex items-center justify-between gap-3 rounded-2xl bg-white/95 p-3.5 shadow-2xl backdrop-blur-md border border-gray-200 animate-slide-up max-w-md mx-auto">
+            <div className="min-w-0 flex-1 pl-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Punto seleccionado
+              </p>
+              <p className="text-xs font-bold text-gray-900 truncate">
+                {addressName || 'Ubicación seleccionada'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(false)}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-blue-700 active:scale-95 shrink-0 cursor-pointer"
+            >
+              <Check size={14} />
+              <span>Listo</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 3. Visual Confirmation Card with Reverse Geocoded Sector & Coords */}
